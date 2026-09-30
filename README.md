@@ -186,6 +186,13 @@ python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4
 python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4 --text "Как ваше здоровье?"
 ```
 
+Скорость и память на одну фразу (среднее по 30 фразам) и таблица для ручной оценки:
+
+```bash
+for v in f32 q8 q4; do python bench_nllb_mlx.py --model models/nllb-v3-mlx-$v; done
+python make_human_eval.py
+```
+
 ## Частые проблемы
 
 | Симптом | Причина и решение |

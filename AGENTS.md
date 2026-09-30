@@ -28,6 +28,9 @@ LoRA-дообучение небольшой LLM (сейчас Qwen3-1.7B, 4 б�
 - `tyv_translate.py` — единственное место, где собирается промпт для инференса.
 - `translate.py` — ручная проверка одной фразы.
 - `evaluate.py` — chrF++ (`CHRF(word_order=2)`) по `data/eval_pairs.jsonl`.
+- `evaluate_nllb.py` — оценка NLLB v3 в PyTorch (эталон, настройки как при обучении v3).
+- `nllb_mlx.py` — NLLB (M2M100) на MLX; `convert_nllb_mlx.py` — конвертация весов HF → MLX (f32/f16/q8/q4);
+  `evaluate_nllb_mlx.py` — оценка MLX-версии теми же настройками. f32 обязана совпадать с PyTorch (49.2 / 49.1).
 
 ## Команды
 

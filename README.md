@@ -164,6 +164,28 @@ hf upload Agisight/tyv-qwen3-1.7b-4bit models/tyv-qwen3-1.7b --repo-type model -
 
 ---
 
+## NLLB v3 на MLX (Задача 1)
+
+NLLB — encoder-decoder, `mlx_lm` его не поддерживает, поэтому архитектура M2M100
+реализована вручную в `nllb_mlx.py` (с KV-кэшем для быстрой генерации).
+
+```bash
+python convert_nllb_mlx.py
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-f32 --limit 100
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-f32
+```
+
+Точная копия (f32) должна дать то же, что PyTorch: **49.2 / 49.1** на чистом тесте.
+Потом лёгкие варианты:
+
+```bash
+python convert_nllb_mlx.py --dtype float16
+python convert_nllb_mlx.py --bits 8
+python convert_nllb_mlx.py --bits 4
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4 --text "Как ваше здоровье?"
+```
+
 ## Частые проблемы
 
 | Симптом | Причина и решение |

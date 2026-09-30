@@ -8,11 +8,15 @@
      предложение не может попасть и в train, и в test.
   4. Делает примеры в обе стороны (ru->tyv и tyv->ru) в chat-формате mlx-lm.
 
-Тест-сет по умолчанию — ТОТ ЖЕ, что в статье про NLLB (eval_for_paper.ipynb):
-  load_dataset("Agisight/tyv-rus-200k")["train"].train_test_split(test_size=2000, seed=42)["test"]
-Из этих 2000 пар убираются те, чья тувинская ИЛИ русская сторона встречается в train
-(в датасете есть дубли, ~1/3 теста). Остаётся ~1345 «чистых» пар — честный тест.
-Флаг --keep-dup-test оставляет все 2000 (как в исходном ноутбуке).
+Тест-сет по умолчанию — ТОТ ЖЕ held-out тест, на котором обучалась и оценивалась NLLB v3
+(train_nllb_tyvan_v3_experimental.py, Ячейка 4):
+  filter(непустые ru и tyv) -> shuffle(seed=42) -> dev = [0:2000], test = [2000:4000], train = остальное.
+Цифры в карточке модели (48.50 / 48.11) посчитаны именно на этом тесте.
+Дополнительно из теста убираются пары, чья тувинская ИЛИ русская сторона встречается в train
+(в датасете есть дубли). Флаг --keep-dup-test оставляет все 2000.
+
+ВНИМАНИЕ: eval_for_paper.ipynb делил данные иначе (train_test_split) — его тест
+пересекается с обучающими данными NLLB, цифры оттуда завышены. Не использовать.
 
 Запуск:
   python prepare_data.py                       # тест как в статье (по умолчанию)
@@ -55,26 +59,17 @@ def load_pairs_from_hf(name: str):
 
 
 def load_paper_split(name: str):
-    """Сплит ровно как в eval_for_paper.ipynb (Ячейка 2)."""
+    """Сплит ровно как при обучении NLLB v3 (train_nllb_tyvan_v3_experimental.py, Ячейка 4)."""
     from datasets import load_dataset
-    sp = load_dataset(name, split="train").train_test_split(test_size=2000, seed=42)
-    train = [(r["tyv"], r["ru"]) for r in sp["train"]]
-    test = [(r["tyv"], r["ru"]) for r in sp["test"]]
-    return train, test
-
-
-def load_pairs_from_file(path: str):
-    p = Path(path)
-    pairs = []
-    if p.suffix == ".jsonl":
-        for line in p.open(encoding="utf-8"):
-            r = json.loads(line)
-            pairs.append((r["tyv"], r["ru"]))
-    else:
-        with p.open(encoding="utf-8") as f:
-            for r in csv.DictReader(f):
-                pairs.append((r["tyv"], r["ru"]))
-    return pairs
+    ds = load_dataset(name, split="train")
+    ds = ds.filter(lambda ex: bool(ex.get("ru")) and bool(ex.get("tyv")))
+    ds = ds.shuffle(seed=42)
+    n = len(ds)
+    dev = ds.select(range(0, 2000))
+    test = ds.select(range(2000, 4000))
+    train = ds.select(range(4000, n))
+    pairs = lambda d: [(r["tyv"], r["ru"]) for r in d]
+    return pairs(train), pairs(test), pairs(dev)
 
 
 def clean(pairs, max_chars):
@@ -125,7 +120,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     if args.split == "paper" and not args.test_file:
-        train_raw, test_raw = load_paper_split(args.dataset)
+        train_raw, test_raw, dev_raw = load_paper_split(args.dataset)
         # Тест оставляем как в статье: без очистки и без ограничения длины, в исходном порядке
         test_pairs = [((t or "").strip(), (r or "").strip()) for t, r in test_raw]
         test_pairs = [(t, r) for t, r in test_pairs if t and r]
@@ -138,11 +133,12 @@ def main():
             print(f"Из теста убраны дубли train: {before - len(test_pairs):,} пар")
         test_keys = {norm(t).lower() for t, _ in test_pairs}
         pairs = clean(train_raw, args.max_chars)
-        print(f"Тест как в статье: {len(test_pairs):,} пар; train после очистки: {len(pairs):,} пар")
+        dev_pairs = [p for p in clean(dev_raw, args.max_chars) if norm(p[0]).lower() not in test_keys]
+        print(f"Тест как у NLLB v3: {len(test_pairs):,} пар; train после очистки: {len(pairs):,} пар")
     else:
         pairs = clean(load_pairs_from_hf(args.dataset), args.max_chars)
         print(f"После очистки: {len(pairs):,} пар")
-        test_pairs, test_keys = None, set()
+        test_pairs, test_keys, dev_pairs = None, set(), None
 
     # Группируем по тувинской стороне, чтобы не было утечки между сплитами
     groups = {}
@@ -163,10 +159,15 @@ def main():
         test_pairs = [groups[k][0] for k in sent_keys[: args.test_size]]
 
     rest = [k for k in keys if k not in test_keys]
-    valid_keys = set([k for k in rest if len(k.split()) >= 3][: args.valid_size])
+    if dev_pairs is not None:
+        # valid = dev-сплит NLLB (как при её обучении); его фразы убираем из train
+        valid_pairs = dev_pairs[: args.valid_size]
+        valid_keys = {t.lower() for t, _ in valid_pairs}
+    else:
+        valid_keys = set([k for k in rest if len(k.split()) >= 3][: args.valid_size])
+        valid_pairs = [groups[k][0] for k in valid_keys]
     train_keys = [k for k in rest if k not in valid_keys]
 
-    valid_pairs = [groups[k][0] for k in valid_keys]
     train_pairs = [p for k in train_keys for p in groups[k]]
 
     def both_ways(ps):

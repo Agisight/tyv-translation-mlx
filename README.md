@@ -76,16 +76,19 @@ python prepare_data.py
 wc -l data/*.jsonl
 ```
 
-Тест-сет по умолчанию — **тот же, что в статье про NLLB**: 2000 пар из
-`train_test_split(test_size=2000, seed=42)`, как в `eval_for_paper.ipynb`.
-Эти пары и их дубли полностью исключены из train, поэтому chrF++ можно
-напрямую сравнивать с NLLB v3 (48.5 / 48.1).
+Тест-сет по умолчанию — **тот же held-out тест, на котором оценивалась NLLB v3**
+(`filter → shuffle(seed=42) → dev [0:2000], test [2000:4000]`, как в
+`train_nllb_tyvan_v3_experimental.py`). Из него дополнительно убраны пары,
+дублирующие train. Valid — dev-сплит NLLB.
 
-Проверка, что сплит совпал: прогони NLLB на этом тесте — должно выйти около 48.
+Не используй тест из `eval_for_paper.ipynb`: там другой сплит, он пересекается
+с обучающими данными NLLB, и цифры завышены.
+
+Проверка, что тест совпал — прогон NLLB (должно выйти около 48.5 / 48.1 на полном тесте):
 
 ```bash
-pip install torch "transformers<5" sentencepiece
-python evaluate_nllb.py --limit 100
+pip install torch sentencepiece sacremoses
+python evaluate_nllb.py --bs 32
 ```
 
 ## 4. Базовая линия до обучения

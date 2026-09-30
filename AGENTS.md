@@ -47,7 +47,8 @@ mlx_lm.fuse --model models/qwen3-1.7b-4bit --adapter-path adapters --save-path m
 2. **Qwen3 — модель с режимом рассуждений.** Для перевода он отключён:
    `enable_thinking=False` в `apply_chat_template`. Не убирай это.
 3. **Тест-сет не должен пересекаться с train.** По умолчанию `prepare_data.py` строит
-   тот же тест, что в статье (`train_test_split(test_size=2000, seed=42)`). Не меняй метрику и не «улучшай» цифры
+   held-out тест NLLB v3 (`shuffle(seed=42)`, test = [2000:4000]) без дублей train.
+   Тест из `eval_for_paper.ipynb` (train_test_split) НЕ использовать — он пересекается с train NLLB. Не меняй метрику и не «улучшай» цифры
    за счёт другого теста.
 4. **Долгие операции** (обучение, полный `evaluate.py`, скачивание моделей) не запускай
    без явной просьбы пользователя. Сначала предложи команду.

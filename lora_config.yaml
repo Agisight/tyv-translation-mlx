@@ -1,0 +1,27 @@
+# Конфиг для: mlx_lm.lora --config lora_config.yaml
+# Быстрый первый прогон: Qwen3-1.7B в 4 битах (QLoRA), рассчитан на MacBook Air M4 от 16 ГБ.
+
+model: "models/qwen3-1.7b-4bit" # путь после mlx_lm.convert (см. README)
+train: true
+data: "data"                    # папка с train.jsonl / valid.jsonl / test.jsonl
+adapter_path: "adapters"
+seed: 42
+
+fine_tune_type: lora
+num_layers: 8                   # сколько последних слоёв дообучать; 16 — для качества позже
+batch_size: 8                   # 4 — если не хватит памяти
+iters: 3000                     # ≈ 24k примеров за прогон; для полного прохода увеличь
+learning_rate: 1.0e-4
+max_seq_length: 128             # пары до 300 символов почти всегда влезают
+grad_checkpoint: true           # экономит память ценой скорости
+mask_prompt: true               # считать loss только по переводу, а не по промпту
+
+steps_per_report: 20
+steps_per_eval: 250
+val_batches: 25
+save_every: 500
+
+lora_parameters:
+  rank: 16
+  scale: 20.0
+  dropout: 0.05

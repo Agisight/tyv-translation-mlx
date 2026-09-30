@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Большие артефакты: не коммитим, они воспроизводятся командами из README
+models/
+data/
+adapters/
+*.safetensors
+*.gguf
+
+# Результаты прогонов
+eval_results*.jsonl
+*.log
+
+# macOS / редакторы
+.DS_Store
+.vscode/
+.idea/

@@ -76,16 +76,17 @@ python prepare_data.py
 wc -l data/*.jsonl
 ```
 
-Ожидаемо: 276 340 пар после очистки; train 60 000, valid 2 000, test 2 000 примеров.
+Тест-сет по умолчанию — **тот же, что в статье про NLLB**: 2000 пар из
+`train_test_split(test_size=2000, seed=42)`, как в `eval_for_paper.ipynb`.
+Эти пары и их дубли полностью исключены из train, поэтому chrF++ можно
+напрямую сравнивать с NLLB v3 (48.5 / 48.1).
 
-Для честного сравнения с NLLB (chrF++ 48.5 / 48.1) подставь тот же тест-сет,
-что был в статье:
+Проверка, что сплит совпал: прогони NLLB на этом тесте — должно выйти около 48.
 
 ```bash
-python prepare_data.py --test-file path/to/nllb_test.csv
+pip install torch "transformers<5" sentencepiece
+python evaluate_nllb.py --limit 100
 ```
-
-Файл должен содержать колонки `tyv` и `ru`.
 
 ## 4. Базовая линия до обучения
 

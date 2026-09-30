@@ -8,9 +8,16 @@
      предложение не может попасть и в train, и в test.
   4. Делает примеры в обе стороны (ru->tyv и tyv->ru) в chat-формате mlx-lm.
 
+Тест-сет по умолчанию — ТОТ ЖЕ, что в статье про NLLB (eval_for_paper.ipynb):
+  load_dataset("Agisight/tyv-rus-200k")["train"].train_test_split(test_size=2000, seed=42)["test"]
+Из этих 2000 пар убираются те, чья тувинская ИЛИ русская сторона встречается в train
+(в датасете есть дубли, ~1/3 теста). Остаётся ~1345 «чистых» пар — честный тест.
+Флаг --keep-dup-test оставляет все 2000 (как в исходном ноутбуке).
+
 Запуск:
-  python prepare_data.py                       # по умолчанию
+  python prepare_data.py                       # тест как в статье (по умолчанию)
   python prepare_data.py --train-limit 0       # взять весь train (долго)
+  python prepare_data.py --split random        # старый случайный сплит
   python prepare_data.py --test-file my_test.csv   # свой тест-сет (колонки tyv, ru)
 """
 import argparse
@@ -45,6 +52,15 @@ def load_pairs_from_hf(name: str):
     from datasets import load_dataset
     ds = load_dataset(name, split="train")
     return [(r["tyv"], r["ru"]) for r in ds]
+
+
+def load_paper_split(name: str):
+    """Сплит ровно как в eval_for_paper.ipynb (Ячейка 2)."""
+    from datasets import load_dataset
+    sp = load_dataset(name, split="train").train_test_split(test_size=2000, seed=42)
+    train = [(r["tyv"], r["ru"]) for r in sp["train"]]
+    test = [(r["tyv"], r["ru"]) for r in sp["test"]]
+    return train, test
 
 
 def load_pairs_from_file(path: str):
@@ -95,6 +111,10 @@ def main():
     ap.add_argument("--test-size", type=int, default=1000, help="пар в test")
     ap.add_argument("--train-limit", type=int, default=60000,
                     help="сколько train-примеров оставить (после удвоения на 2 направления); 0 = все")
+    ap.add_argument("--split", default="paper", choices=["paper", "random"],
+                    help="paper — тест как в статье про NLLB; random — случайный сплит")
+    ap.add_argument("--keep-dup-test", action="store_true",
+                    help="не убирать из теста пары, которые дублируют train (как в исходном ноутбуке)")
     ap.add_argument("--test-file", default=None,
                     help="свой тест-сет csv/jsonl с колонками tyv, ru (например, тот же, что для NLLB)")
     ap.add_argument("--seed", type=int, default=42)
@@ -104,26 +124,43 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    pairs = clean(load_pairs_from_hf(args.dataset), args.max_chars)
-    print(f"После очистки: {len(pairs):,} пар")
+    if args.split == "paper" and not args.test_file:
+        train_raw, test_raw = load_paper_split(args.dataset)
+        # Тест оставляем как в статье: без очистки и без ограничения длины, в исходном порядке
+        test_pairs = [((t or "").strip(), (r or "").strip()) for t, r in test_raw]
+        test_pairs = [(t, r) for t, r in test_pairs if t and r]
+        if not args.keep_dup_test:
+            tr_tyv = {(t or "").strip().lower() for t, _ in train_raw}
+            tr_ru = {(r or "").strip().lower() for _, r in train_raw}
+            before = len(test_pairs)
+            test_pairs = [(t, r) for t, r in test_pairs
+                          if t.lower() not in tr_tyv and r.lower() not in tr_ru]
+            print(f"Из теста убраны дубли train: {before - len(test_pairs):,} пар")
+        test_keys = {norm(t).lower() for t, _ in test_pairs}
+        pairs = clean(train_raw, args.max_chars)
+        print(f"Тест как в статье: {len(test_pairs):,} пар; train после очистки: {len(pairs):,} пар")
+    else:
+        pairs = clean(load_pairs_from_hf(args.dataset), args.max_chars)
+        print(f"После очистки: {len(pairs):,} пар")
+        test_pairs, test_keys = None, set()
 
     # Группируем по тувинской стороне, чтобы не было утечки между сплитами
     groups = {}
     for tyv, ru in pairs:
         groups.setdefault(tyv.lower(), []).append((tyv, ru))
-    keys = list(groups)
+    keys = [k for k in groups if k not in test_keys]  # дубли тестовых фраз тоже убираем из train
     rng.shuffle(keys)
 
-    if args.test_file:
+    if test_pairs is None and args.test_file:
         test_pairs = clean(load_pairs_from_file(args.test_file), 10_000)
         test_keys = {t.lower() for t, _ in test_pairs}
-        keys = [k for k in keys if k not in test_keys]  # убираем тест из train
+        keys = [k for k in keys if k not in test_keys]
         print(f"Свой тест-сет: {len(test_pairs):,} пар (исключены из train)")
-    else:
+    elif test_pairs is None:
         # В valid/test берём только нормальные предложения (3+ слова), не словарные статьи
         sent_keys = [k for k in keys if len(k.split()) >= 3]
         test_keys = set(sent_keys[: args.test_size])
-        test_pairs = [groups[k][0] for k in test_keys]
+        test_pairs = [groups[k][0] for k in sent_keys[: args.test_size]]
 
     rest = [k for k in keys if k not in test_keys]
     valid_keys = set([k for k in rest if len(k.split()) >= 3][: args.valid_size])

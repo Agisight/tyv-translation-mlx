@@ -1,89 +1,174 @@
-Avar Keyboard Layouts for iOS
+# Тувинский переводчик на MLX
 
-Three Avar keyboard layouts are provided:
+LoRA-дообучение Qwen3-1.7B (4 бита) на корпусе
+[Agisight/tyv-rus-200k](https://huggingface.co/datasets/Agisight/tyv-rus-200k)
+прямо на MacBook Air M4. Цель первого прогона — проверить весь путь:
+обучение, перевод в терминале, запуск на Mac и iPhone. Качество улучшаем потом.
 
-ava-4-rows — new 4-row layout, primary option
-ava-3-rows — 3-row layout, primary fallback option
-ava-4-rows-legacy — previous 4-row layout, additional fallback option
+Текущий статус и результаты — в [EXPERIMENTS.md](EXPERIMENTS.md).
+Правила для ИИ-агентов — в [AGENTS.md](AGENTS.md).
 
-These layouts support different implementation options.
+> **Про терминал.** zsh на Маке не понимает комментарии `#` во вставленных командах.
+> Все команды ниже можно копировать как есть.
 
-The new 4-row layout is the primary and preferred option. It is intended to be implemented first. It places all Avar letters directly on the primary layer without letter replacement.
+---
 
-If the new 4-row layout cannot be implemented due to technical limitations, key size, keyboard geometry, or other platform constraints, the 3-row layout is used as the primary fallback option.
+## 0. Проверить Мак
 
-If the 3-row layout has already been implemented and the new 4-row layout is not possible, the previous 4-row layout may be added as an additional alternative if it can be implemented technically.
+```bash
+uname -m
+sysctl -n hw.memsize | awk '{print $1/1073741824 " GB"}'
+df -h ~ | tail -1
+```
 
-The preferred implementation order is therefore:
+Нужно: `arm64`, от 16 ГБ памяти, от 15 ГБ свободного места.
+Если места мало — освободи заранее: при обучении macOS пишет своп на диск.
 
-new 4-row layout;
-3-row layout;
-previous 4-row layout — only as an additional alternative after the 3-row layout has been implemented.
+## 1. Python и окружение (один раз)
 
-Depending on technical limitations, the following combinations may be available:
+Системный `python3` на Маке — 3.9, он не подходит. Ставим 3.12 через Homebrew
+и создаём окружение именно им:
 
-new 4-row + 3-row;
-3-row + previous 4-row;
-3-row only.
+```bash
+brew install python@3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+python --version
+pip install -U pip
+pip install "mlx-lm[train]" datasets sacrebleu
+```
 
-Long-press
+Проверка:
 
-Long-press is used to access:
+```bash
+python -c "import mlx.core as mx; print(mx.default_device())"
+python -c "import mlx_lm; print(mlx_lm.__version__)"
+```
 
-stress marks
-secondary symbols
+Должно быть `Device(gpu, 0)` и версия mlx-lm.
 
-iPhone Versions
+**В каждом новом терминале** сначала: `cd` в папку проекта и `source .venv/bin/activate`.
 
-The following three layouts are available for iPhone:
+## 2. Модель: скачать и сжать в 4 бита (один раз)
 
-new 4-row layout
-3-row layout
-previous 4-row layout
+Сначала полностью скачиваем репозиторий модели, потом конвертируем.
+Без первой строки новый `huggingface_hub` падает при сохранении с
+`IncompleteSnapshotError`.
 
-Their priority and implementation order follow the rules described above.
+```bash
+hf download Qwen/Qwen3-1.7B
+mlx_lm.convert --hf-path Qwen/Qwen3-1.7B -q --q-bits 4 --mlx-path models/qwen3-1.7b-4bit
+du -sh models/qwen3-1.7b-4bit
+mlx_lm.generate --model models/qwen3-1.7b-4bit --prompt "Hello" --max-tokens 30
+```
 
-iPad Versions
+Ожидаемо: около 950 МБ, ответ модели (с тегом `<think>` — это нормально).
+Потом удали оригинал из кэша, он больше не нужен (около 4 ГБ):
 
-The same three layouts are available for iPad:
+```bash
+rm -rf ~/.cache/huggingface/hub/models--Qwen--Qwen3-1.7B
+```
 
-new 4-row layout
-3-row layout
-previous 4-row layout
+## 3. Данные
 
-Their priority and implementation order are the same as for iPhone.
+```bash
+python prepare_data.py
+wc -l data/*.jsonl
+```
 
-Avar macOS
+Ожидаемо: 276 340 пар после очистки; train 60 000, valid 2 000, test 2 000 примеров.
 
-Avar-specific letters (including ӏ) — 33 letters — are placed directly on the primary layer using standard ANSI keyboard geometry.
+Для честного сравнения с NLLB (chrF++ 48.5 / 48.1) подставь тот же тест-сет,
+что был в статье:
 
-No letter replacement is used.
+```bash
+python prepare_data.py --test-file path/to/nllb_test.csv
+```
 
-Stress marks are available via dead keys.
+Файл должен содержать колонки `tyv` и `ru`.
 
-Avar keyNames
+## 4. Базовая линия до обучения
 
-Key names are translated into Avar using natural interface phrasing.
+```bash
+python translate.py --no-adapter "Как ваше здоровье?"
+python evaluate.py --no-adapter --limit 100
+```
 
-Stress marks
+Модель без обучения не понимает задачу и отвечает как чат-бот. Это нормально.
+Запиши цифры в `EXPERIMENTS.md`.
 
-Stress marks (combining acute accent U+0301) are optional and are primarily used for:
+## 5. Обучение (около часа)
 
-educational purposes
-disambiguation
+Подключи зарядку, поставь Мак на подставку, закрой браузер, крышку не закрывай.
 
-They should be ignored during:
+```bash
+caffeinate -i mlx_lm.lora --config lora_config.yaml
+```
 
-autocorrection
-search
-tokenization
-frequency analysis
+- Через 20 шагов появится строка с `It/sec`. Время прогона ≈ 3000 / It/sec секунд.
+- `Val loss` каждые 250 шагов должен падать.
+- Нехватка памяти → в `lora_config.yaml` `batch_size: 4`, потом `max_seq_length: 96`.
+- Адаптер сохраняется каждые 500 шагов. Продолжить прерванный прогон:
 
-Recommended preprocessing
+```bash
+caffeinate -i mlx_lm.lora --config lora_config.yaml --resume-adapter-file adapters/adapters.safetensors
+```
 
-For linguistic processing (such as search, tokenization, or frequency analysis), it is recommended to:
+## 6. Проверить перевод
 
-apply Unicode NFD normalization
-remove combining diacritical marks
+```bash
+python translate.py "Как ваше здоровье?"
+python translate.py --dir tyv-ru "Кадыыңар кандыг-дыр?"
+python evaluate.py --limit 500
+```
 
-This ensures that words are processed identically regardless of whether stress marks are present.
+Переводы сохраняются в `eval_results.jsonl` — их полезно просмотреть глазами.
+Запиши результат в `EXPERIMENTS.md`.
+
+## 7. Собрать готовую модель
+
+```bash
+mlx_lm.fuse --model models/qwen3-1.7b-4bit --adapter-path adapters --save-path models/tyv-qwen3-1.7b
+python translate.py --model models/tyv-qwen3-1.7b --no-adapter "Спасибо"
+```
+
+Папка около 1 ГБ — это модель для Mac и iPhone.
+
+## 8. Выложить на Hugging Face
+
+```bash
+hf auth login
+hf upload Agisight/tyv-qwen3-1.7b-4bit models/tyv-qwen3-1.7b --repo-type model --private
+```
+
+## 9. Запуск на Mac и iPhone
+
+**MLX не работает в симуляторе iOS** — ему нужен настоящий GPU.
+Проверяй на Маке (как Mac-приложение) или на реальном iPhone.
+
+Самый быстрый путь — демо-приложение LLMEval:
+
+1. `git clone https://github.com/ml-explore/mlx-swift-examples`
+2. Открой проект, выбери схему **LLMEval**.
+3. Замени модель на свою: `Agisight/tyv-qwen3-1.7b-4bit` или путь к `models/tyv-qwen3-1.7b`.
+4. Отключи режим рассуждений: передай в шаблон `enable_thinking: false`
+   (в `UserInput` это `additionalContext`).
+5. Промпт — в формате обучения: `ru→tyv: Как ваше здоровье?`
+6. Запусти на **My Mac**, потом на iPhone (нужен твой Team в Signing).
+
+Модель около 1 ГБ — в пределах рекомендации Apple держать модели на iOS до ~2 ГБ.
+
+---
+
+## Частые проблемы
+
+| Симптом | Причина и решение |
+|---|---|
+| `command not found: python3.12` | Python не установлен: `brew install python@3.12` |
+| `python --version` показывает 3.9 | Окружение создано не тем Python: удали `.venv`, создай через `python3.12 -m venv .venv` |
+| Ошибки `awk`/`tail` с кусками русского текста | В команду попал комментарий `#` — zsh его не понимает |
+| `IncompleteSnapshotError` при `mlx_lm.convert` | Сначала `hf download Qwen/Qwen3-1.7B`, потом конвертация заново |
+| Out of memory при обучении | `batch_size: 4`, потом `max_seq_length: 96`, потом `num_layers: 4` |
+| Модель пишет `<think>` | Нет `enable_thinking=False` (в Python уже есть в `tyv_translate.py`) |
+| Перевод пустой или повторяется | Мало шагов обучения — смотри на `Val loss` |
+| Подсказки `hf update`, `hf skills` | Игнорировать, обновлять не нужно |

@@ -1,5 +1,7 @@
 # Python
 .venv/
+.venv-comet/
+comet_*.jsonl
 __pycache__/
 *.pyc
 

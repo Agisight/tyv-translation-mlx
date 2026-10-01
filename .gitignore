@@ -20,3 +20,9 @@ adapters/
 .DS_Store
 .vscode/
 .idea/
+
+# Xcode: проект генерируется из app/project.yml командой xcodegen
+app/*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/

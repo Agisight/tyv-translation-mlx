@@ -39,7 +39,7 @@
 - [x] Project on GitHub: https://github.com/Agisight/tyv-translation-mlx (MIT; English/Russian README; the notebook downloads `prepare_data.py` itself; HF model cards link to it)
 - [x] Reproducibility: dataset revision pinned (`DATASET_REVISION = 6d79b8ac…`), exact library versions in `requirements.lock`; the test set is unchanged (md5 of `eval_pairs.jsonl` = 3f4962de…)
 - [x] Qwen experiment moved to `legacy/qwen/`
-- [ ] Run on Mac in an app (MLX Swift / LLMEval)
+- [x] **Mac app** (`app/`, SwiftUI + mlx-swift-lm): the pruned 6-bit model runs offline in a native app, ~0.9 s per sentence after warm-up; translations correct (native speaker)
 - [ ] Run on iPhone
 
 ## Results
@@ -135,3 +135,4 @@ All comparisons use the **clean test set (1,369 pairs)** unless noted otherwise.
 - **2026-10-01.** Pruned 5-bit on the full clean test: 49.7 / 49.9 — −0.8 / −1.0 vs. full Gemma, a significant loss (p = 0.004 / 0.001); vs. NLLB +0.5 (p = 0.14, not significant) / +0.8 (p = 0.045). On 100 pairs it looked lossless — only the full test shows the real gap. Summary so far: pruning is free, 8 bits are lossless, 5 bits cost ~1 point, below 5 bits quality collapses.
 - **2026-10-01.** Native speaker on «оңгарже шымны берди»: «нырнул» / «погрузился» is exact, «упал» only approximate. 6- and 8-bit produced «нырнул», 5-bit and full Gemma «упала / упал». chrF++ barely separates these — a reason to add a native-speaker check when choosing between 5 and 6 bits.
 - **2026-10-01. On-device version: pruned 6-bit.** Full clean test: 50.2 / 50.8 (BLEU 20.7 / 25.9) — no significant difference from the full bf16 model (p = 0.12 / 0.29) and significantly better than NLLB v3 in both directions (p = 0.029 / 0.002). 3.2 GB on disk, 3.8 GB peak, 0.79 s per sentence on a MacBook Air M4. From the 16 GB fine-tuned model to 3.2 GB — 5× smaller — at the same quality. 6 bits is the threshold: 5 bits loses ~1 point significantly.
+- **2026-10-01.** SwiftUI app (`app/`, XcodeGen project, macOS + iOS): mlx-swift-lm supports `gemma4_text` and reads the vocabulary sizes from `config.json`, so the pruned model (22,755 tokens) loads unchanged; `num_experts: null` decodes as absent. The prompt is built by hand exactly as in training (`<bos><|turn>user\n…<turn|>\n<|turn>model\n`), greedy decoding, `32 + 3 × input length` tokens. Built on the first try; Xcode asks to download the Metal Toolchain (MLX compiles its shaders). First translation 4.2 s (warm-up, Debug build), then ~0.9 s per sentence. Native speaker: translations correct. «Эртен Кызылче ада-иемге баар мен» uses «эртен» instead of «даарта» — synonyms, both mean "tomorrow" ("in the morning" is «эртен / эртежик / эртенинде»); chrF++ would count it as an error.

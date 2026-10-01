@@ -78,6 +78,24 @@ mlx_lm.generate --model Agisight/tyv-gemma4-e4b-pruned-mlx-6bit \
 **Gemma on a GPU (transformers + peft):** see the code example in the
 [adapter card](https://huggingface.co/Agisight/tyv-gemma4-e4b-lora).
 
+## App for Mac, iPad and iPhone
+
+![Tyva Translator on a Mac](app/screenshot.png)
+
+A SwiftUI app in [`app/`](app/) runs the pruned 6-bit Gemma fully offline with
+[mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm): about 0.9 s per sentence on a MacBook Air M4.
+The prompt is built exactly as in training, with greedy decoding.
+
+```bash
+brew install xcodegen
+cd app && xcodegen && open TyvaTranslator.xcodeproj
+```
+
+Pick your team in Signing & Capabilities, choose **My Mac**, press ⌘R. The first launch downloads the
+model (~3.4 GB); after that it works without internet. iPad and iPhone need a real device with 8 GB of RAM
+(iPad with an M chip, iPhone 15 Pro or newer) — the simulator has no Apple Silicon GPU for MLX. Details:
+[app/README.md](app/README.md).
+
 ## Reproduce from scratch
 
 ### 1. Data and test set
@@ -165,6 +183,7 @@ comparison with earlier work, on the full 1,999 pairs. Conclusions are the same 
 | `colab/prune_gemma4_vocab_colab.ipynb` | Gemma vocabulary pruning, text-only model, evaluation, MLX |
 | `significance.py`, `metrics_extra.py`, `comet_eval.py` | Significance test, normalized chrF++, COMET |
 | `make_human_eval.py`, `count_human_eval.py` | Native-speaker review of quantization differences |
+| `app/` | SwiftUI app (Mac, iPad, iPhone) running the pruned 6-bit Gemma with mlx-swift-lm |
 | `upload_*.py` | Publishing models and model cards to Hugging Face |
 | `eval_results_*` | Saved translations used for all reported metrics |
 

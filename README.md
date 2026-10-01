@@ -80,7 +80,10 @@ mlx_lm.generate --model Agisight/tyv-gemma4-e4b-pruned-mlx-6bit \
 
 ## App for Mac, iPad and iPhone
 
-![Tyva Translator on a Mac](app/screenshot.png)
+<p>
+  <img src="app/screenshot.png" alt="Tyva Translator on a Mac: Tuvan to Russian, 0.8 s" width="49%">
+  <img src="app/screenshot2.png" alt="Tyva Translator on a Mac: «Аштай бердим» → «Я проголодался», 0.7 s" width="49%">
+</p>
 
 A SwiftUI app in [`app/`](app/) runs the pruned 6-bit Gemma fully offline with
 [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm): about 0.9 s per sentence on a MacBook Air M4.

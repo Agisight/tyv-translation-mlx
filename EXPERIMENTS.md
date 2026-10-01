@@ -33,7 +33,9 @@
 - [x] Pruned MLX 8-bit on the Mac (first 100 pairs): 50.3 / 50.0, 4.6 GB peak — half the memory of the unpruned 8-bit with the same quality
 - [x] Quantization sweep of the pruned model (first 100 pairs): 4-bit (group 64 / 32), mixed 4/6 (group 64 / 32), 5-bit, 6-bit, 8-bit — quality holds from 5 bits up and drops below
 - [x] Pruned **5-bit**, full clean test: **49.7 / 49.9**, 2.7 GB, 3.3 GB peak, 0.93 s per sentence. vs. NLLB: +0.5 (p = 0.14, n.s.) / +0.8 (p = 0.045). vs. full Gemma: −0.8 (p = 0.004) / −1.0 (p = 0.001) — a real loss
-- [ ] Pruned **6-bit**, full clean test — candidate iPhone version (3.2 GB, 3.6 GB peak)
+- [x] Pruned **6-bit**, full clean test: **50.2 / 50.8**, 3.2 GB, 3.8 GB peak, 0.79 s per sentence. vs. NLLB: significantly better (p = 0.029 / 0.002). vs. full Gemma: no significant difference (p = 0.12 / 0.29) — **the on-device version**
+- [ ] Publish pruned 6-bit with a model card (`upload_gemma_pruned.py`)
+- [ ] Run on iPhone (8 GB RAM devices; MLX Swift)
 - [x] Project on GitHub: https://github.com/Agisight/tyv-translation-mlx (MIT; English/Russian README; the notebook downloads `prepare_data.py` itself; HF model cards link to it)
 - [x] Reproducibility: dataset revision pinned (`DATASET_REVISION = 6d79b8ac…`), exact library versions in `requirements.lock`; the test set is unchanged (md5 of `eval_pairs.jsonl` = 3f4962de…)
 - [x] Qwen experiment moved to `legacy/qwen/`
@@ -57,7 +59,8 @@ All comparisons use the **clean test set (1,369 pairs)** unless noted otherwise.
 | 2026-10-01 | **Gemma 4 E4B + LoRA, pruned vocabulary, text-only** (bf16, Colab) | 22,755 tokens, 4.28B params, 8.0 GB | **clean test, 1,369 pairs** | — | — | **50.5** | **50.8** | lossless vs. full (50.5 / 50.9); BLEU 20.9 / 25.9; 85% / 88% of translations identical to the full model |
 | 2026-10-01 | **Pruned → MLX 5-bit** (mlx-lm) | 5.5 bits/weight, 2.7 GB | **clean test, 1,369 pairs** | — | — | **49.7** | **49.9** | BLEU 20.2 / 24.6; vs. NLLB p = 0.14 / 0.045; vs. full Gemma p = 0.004 / 0.001; 0.93 s per sentence, 3.3 GB peak |
 | 2026-10-01 | Pruned → MLX 8-bit | 8.5 bits/weight, 4.3 GB | clean test, first 100 pairs | — | — | 50.3 | 50.0 | ≈ bf16 (51.1 / 49.6); 4.6 GB peak |
-| 2026-10-01 | Pruned → MLX 6-bit | 6.5 bits/weight, 3.2 GB | clean test, first 100 pairs | — | — | 49.7 | 49.8 | 3.6 GB peak; full run pending |
+| 2026-10-01 | **Pruned → MLX 6-bit** | 6.5 bits/weight, 3.2 GB | **clean test, 1,369 pairs** | — | — | **50.2** | **50.8** | BLEU 20.7 / 25.9; vs. NLLB p = 0.029 / 0.002; vs. full Gemma p = 0.12 / 0.29 (n.s.); 0.79 s per sentence, 3.8 GB peak — **on-device version** |
+| 2026-10-01 | Pruned → MLX 6-bit | 6.5 bits/weight, 3.2 GB | clean test, first 100 pairs | — | — | 49.7 | 49.8 | 3.6 GB peak (full test above) |
 | 2026-10-01 | Pruned → MLX 5-bit | 5.5 bits/weight, 2.7 GB | clean test, first 100 pairs | — | — | 50.6 | 49.2 | 3.1 GB peak (full test above) |
 | 2026-10-01 | Pruned → MLX mixed 4/6, group 32 | 5.27 bits/weight, 2.6 GB | clean test, first 100 pairs | — | — | 49.8 | 48.1 | 2.9 GB peak |
 | 2026-10-01 | Pruned → MLX mixed 4/6 | 4.77 bits/weight, 2.4 GB | clean test, first 100 pairs | — | — | 50.7 | 45.2 | 2.7 GB peak |
@@ -131,3 +134,4 @@ All comparisons use the **clean test set (1,369 pairs)** unless noted otherwise.
   Quality holds from ~5 bits up and drops below; translation **into Russian** is consistently more sensitive to quantization than into Tuvan. Mixed 4/6 fixes ru→tyv, a smaller group helps tyv→ru more. 100 pairs are noisy (±1–2 points) — the full test decides.
 - **2026-10-01.** Pruned 5-bit on the full clean test: 49.7 / 49.9 — −0.8 / −1.0 vs. full Gemma, a significant loss (p = 0.004 / 0.001); vs. NLLB +0.5 (p = 0.14, not significant) / +0.8 (p = 0.045). On 100 pairs it looked lossless — only the full test shows the real gap. Summary so far: pruning is free, 8 bits are lossless, 5 bits cost ~1 point, below 5 bits quality collapses.
 - **2026-10-01.** Native speaker on «оңгарже шымны берди»: «нырнул» / «погрузился» is exact, «упал» only approximate. 6- and 8-bit produced «нырнул», 5-bit and full Gemma «упала / упал». chrF++ barely separates these — a reason to add a native-speaker check when choosing between 5 and 6 bits.
+- **2026-10-01. On-device version: pruned 6-bit.** Full clean test: 50.2 / 50.8 (BLEU 20.7 / 25.9) — no significant difference from the full bf16 model (p = 0.12 / 0.29) and significantly better than NLLB v3 in both directions (p = 0.029 / 0.002). 3.2 GB on disk, 3.8 GB peak, 0.79 s per sentence on a MacBook Air M4. From the 16 GB fine-tuned model to 3.2 GB — 5× smaller — at the same quality. 6 bits is the threshold: 5 bits loses ~1 point significantly.

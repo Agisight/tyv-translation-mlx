@@ -10,7 +10,7 @@ low-resource Turkic language with roughly 280,000 speakers.
 - **Gemma 4 E4B + LoRA** — a fine-tuned LLM that significantly outperforms the specialized NLLB v3
   model in both directions, converted to MLX for Mac.
 - **Vocabulary pruning** — Gemma's 262K-token vocabulary cut to 22.7K tokens and the vision/audio towers
-  removed: half the size (4.3B parameters) with the same quality.
+  removed: half the size (4.3B parameters) with the same quality; at 6 bits it is 3.2 GB and still beats NLLB.
 - **A clean test set and honest evaluation** — chrF++, BLEU, COMET, paired bootstrap significance,
   and a normalized chrF++ that does not penalize gender (Tuvan has none) or word forms.
 
@@ -29,6 +29,7 @@ Clean test set, 1,369 pairs (see [Test set](#test-set)). Latency: median per sen
 | **Gemma 4 E4B + LoRA, MLX 8-bit** | 8.4 GB | **50.3** | **50.9** | — | 0.89 s |
 | Gemma 4 E4B + LoRA, MLX 4-bit ¹ | 4.9 GB | 48.2 | 44.3 | — | 0.53 s |
 | **Gemma, pruned vocabulary, text-only, bf16** | 8.0 GB | **50.5** | **50.8** | — | — |
+| **Gemma, pruned, MLX 6-bit (on-device)** | **3.2 GB** | **50.2** | **50.8** | — | 0.79 s |
 | Gemma, pruned, MLX 5-bit | 2.7 GB | 49.7 | 49.9 | — | 0.93 s |
 | Gemma, pruned, MLX 4-bit ¹ | 2.3 GB | 47.9 | 43.3 | — | 0.94 s |
 
@@ -37,7 +38,7 @@ Clean test set, 1,369 pairs (see [Test set](#test-set)). Latency: median per sen
 Gemma vs. NLLB v3: p = 0.009 (ru→tyv) and p = 0.001 (tyv→ru), paired bootstrap on chrF++.
 On the full 1,999-pair NLLB test set: Gemma 49.7 / 49.9 vs. NLLB 48.5 / 48.1.
 
-Quantization of the pruned model: 8 bits are lossless, 5 bits cost ~1 point (significant vs. bf16, p ≤ 0.004; on par with NLLB), below 5 bits quality drops sharply — translation into Russian is the most sensitive. Full sweep in [EXPERIMENTS.md](EXPERIMENTS.md).
+Quantization of the pruned model: **6 bits keep the full model's quality** (vs. bf16 p = 0.12 / 0.29; vs. NLLB significantly better, p = 0.029 / 0.002) at 3.2 GB — 5× smaller than the 16 GB fine-tuned model. 5 bits cost ~1 point (significant), below 5 bits quality drops sharply — translation into Russian is the most sensitive. Full sweep in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ## Models
 
@@ -47,7 +48,8 @@ Quantization of the pruned model: 8 bits are lossless, 5 bits cost ~1 point (sig
 | [Agisight/nllb-rus-tyv-v3-mlx-q8](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q8) | MLX 8-bit | Mac (recommended) |
 | [Agisight/nllb-rus-tyv-v3-mlx-q4](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q4) | MLX 4-bit | Mac, low memory |
 | [Agisight/tyv-gemma4-e4b-lora](https://huggingface.co/Agisight/tyv-gemma4-e4b-lora) | LoRA adapter for `google/gemma-4-E4B-it` | GPU (transformers + peft) |
-| [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) | MLX 8-bit (merged) | Mac, 16 GB+ (recommended) |
+| [Agisight/tyv-gemma4-e4b-pruned-mlx-6bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-pruned-mlx-6bit) | MLX 6-bit, pruned vocabulary, text-only | Mac and on-device (**recommended**) |
+| [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) | MLX 8-bit (merged, full vocabulary) | Mac, 16 GB+ |
 
 ## Quick start: translate
 
@@ -69,8 +71,8 @@ python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q8 --dir tyv-ru --text "�
 **Gemma on a Mac (MLX):** the prompt format is `ru→tyv: <text>` or `tyv→ru: <text>`.
 
 ```bash
-mlx_vlm.generate --model Agisight/tyv-gemma4-e4b-mlx-8bit \
-  --prompt "ru→tyv: Завтра я поеду в Кызыл к родителям." --max-tokens 64 --temperature 0.0
+mlx_lm.generate --model Agisight/tyv-gemma4-e4b-pruned-mlx-6bit \
+  --prompt "ru→tyv: Завтра я поеду в Кызыл к родителям." --max-tokens 64 --temp 0.0
 ```
 
 **Gemma on a GPU (transformers + peft):** see the code example in the

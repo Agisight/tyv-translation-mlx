@@ -20,6 +20,7 @@
 - [ ] **Задача 2: NLLB v3 → Core AI** (iOS/macOS 27): экспорт из PyTorch, отчёт Xcode — какие операции на Neural Engine; сравнение с Core ML int8 и MLX
 - [x] Обучение Gemma 4 E4B в Colab (A100 80 ГБ) на всём train: 1 эпоха, 8494 шага, 7.5 ч; адаптер на Диске и в HF (приватно): https://huggingface.co/Agisight/tyv-gemma4-e4b-lora
 - [x] Оценка Gemma: чистый и полный тест, значимость (paired bootstrap), нормализованный chrF++, COMET — **значимо лучше NLLB v3 в обе стороны**
+- [x] Gemma 4 E4B LoRA опубликована: https://huggingface.co/Agisight/tyv-gemma4-e4b-lora (карточка с метриками, значимостью и кодом)
 - [ ] Gemma → MLX на Маке (слитая bf16 весит ~16 ГБ, на диске ~22 ГБ свободно — продумать путь)
 - [ ] Запуск на Mac (LLMEval)
 - [ ] Запуск на iPhone

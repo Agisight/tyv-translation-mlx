@@ -119,6 +119,11 @@ print(translate("Экии!", "tyv→ru"))
   can lead to mistranslations.
 - The adapter inherits the limitations and license terms of the base model.
 
+## Code
+
+Training notebook (Colab), data preparation, and evaluation scripts:
+[Agisight/tyv-translation-mlx](https://github.com/Agisight/tyv-translation-mlx).
+
 ## Credits
 
 - Base model: Google, Gemma 4 E4B.

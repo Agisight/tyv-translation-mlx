@@ -107,6 +107,10 @@ print(translate("Экии!", src="tyv_Cyrl", tgt="rus_Cyrl"))
 For best quality, apply the same text normalization as in training (Moses punctuation
 normalization + NFKC); see `preproc()` in the evaluation script of the project.
 
+## Code
+
+Conversion, evaluation, and benchmarking scripts: [Agisight/tyv-translation-mlx](https://github.com/Agisight/tyv-translation-mlx).
+
 ## Credits
 
 - Base model: Meta AI, [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) (CC-BY-NC-4.0).

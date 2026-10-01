@@ -1,6 +1,6 @@
 # Тувинский переводчик на MLX — подробная инструкция для Mac (рус.)
 
-> Краткий обзор проекта, результаты и ссылки на модели — в [README.md](README.md) (англ.).
+> Краткий обзор проекта, результаты и ссылки на модели — в [README.md](README.md) (англ.). Журнал экспериментов — [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md).
 > Здесь — пошаговая установка на MacBook и решения проблем, с которыми мы столкнулись.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Agisight/tyv-translation-mlx/blob/main/colab/train_gemma4_tyv_colab.ipynb)

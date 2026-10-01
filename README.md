@@ -12,7 +12,7 @@ low-resource Turkic language with roughly 280,000 speakers.
 - **A clean test set and honest evaluation** — chrF++, BLEU, COMET, paired bootstrap significance,
   and a normalized chrF++ that does not penalize gender (Tuvan has none) or word forms.
 
-Русская пошаговая инструкция для Mac: [README.ru.md](README.ru.md). Журнал экспериментов: [EXPERIMENTS.md](EXPERIMENTS.md).
+Русская пошаговая инструкция для Mac: [README.ru.md](README.ru.md). Журнал экспериментов: [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md). Experiment log: [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ## Results
 

@@ -1,87 +1,100 @@
-# Журнал экспериментов
+# Experiment log
 
-## Статус
+> Русская версия: [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md). Both files are kept in sync.
 
-- [x] Окружение: MacBook Air M4, 16 ГБ; Python 3.12.14 (Homebrew) в `.venv`; mlx-lm 0.31.3; MLX видит GPU; torch 2.14 (MPS) для оценки NLLB
-- [x] Git-репозиторий, `.gitignore`, `AGENTS.md`
-- [x] Модель `Qwen/Qwen3-1.7B` сжата в 4 бита → `models/qwen3-1.7b-4bit` (948 МБ; 4.501 бит/вес; ~98 ток/с генерации, пик памяти ~1 ГБ)
-- [x] Базовая линия Qwen без обучения
-- [x] Первый прогон обучения Qwen (3000 шагов: 500 + 2500 после продолжения)
-- [x] Оценка Qwen после обучения (на старом случайном тесте)
-- [x] Восстановлен настоящий тест NLLB v3: `filter → shuffle(seed=42) → test [2000:4000]`; метрики карточки воспроизведены точно
-- [x] Чистый тест без дублей train (1369 пар) — эталон для всех сравнений
-- [x] Данные пересобраны на сплите NLLB: train 272 704 пар после очистки (60 000 примеров в обучении), valid — dev-сплит NLLB
-- [x] **Задача 1: NLLB v3 → MLX.** Своя реализация M2M100 с KV-кэшем (`nllb_mlx.py`); f32 совпадает с PyTorch (100/100 переводов идентичны, 49.2 / 49.1 на полном тесте); int8 без потерь (400 МБ); int4 −0.7 / −1.0 (224 МБ)
-- [x] MLX int8 опубликована: https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q8 (веса, `nllb_mlx.py`, карточка с метриками; проверено скачивание и перевод из чистой папки)
-- [x] MLX int4 опубликована: https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q4 (для слабых устройств, −1 chrF++)
-- [ ] Ручная оценка int4 носителем (`human_eval_q4.csv`, 50 случаев из 1429, где int4 ≠ f32; разделитель `;`). Размечено 11/50: 2 — 27%, 1 — 36%, 0 — 36%. **TODO:** добавить колонку «оценка f32» (шкала 2/1/0) и оценить f32 в тех же строках → `python count_human_eval.py` покажет, в скольких случаях int4 хуже f32. Не запускать `make_human_eval.py` повторно — перезапишет оценки
-- [x] Замеры на одну фразу (`bench_nllb_mlx.py`, 30 фраз на направление): f32 0.19 / 0.12 с, int8 0.07 / 0.06 с, int4 0.05 / 0.03 с (медиана)
-- [ ] Смешанная квантизация int4 (эмбеддинги и выходной слой в 8 битах) — попытка вернуть качество
-- [ ] **Задача 2: NLLB v3 → Core AI** (iOS/macOS 27): экспорт из PyTorch, отчёт Xcode — какие операции на Neural Engine; сравнение с Core ML int8 и MLX
-- [x] Обучение Gemma 4 E4B в Colab (A100 80 ГБ) на всём train: 1 эпоха, 8494 шага, 7.5 ч; адаптер на Диске и в HF (приватно): https://huggingface.co/Agisight/tyv-gemma4-e4b-lora
-- [x] Оценка Gemma: чистый и полный тест, значимость (paired bootstrap), нормализованный chrF++, COMET — **значимо лучше NLLB v3 в обе стороны**
-- [x] Gemma 4 E4B LoRA опубликована: https://huggingface.co/Agisight/tyv-gemma4-e4b-lora (карточка с метриками, значимостью и кодом)
-- [x] MLX 4/8 бит загружены (приватно): Agisight/tyv-gemma4-e4b-mlx-4bit, -8bit; первые 100 фраз: 4 бит −2.9 / −5.3 chrF++ к bf16 — проверяем 8 бит
-- [ ] Gemma → MLX на Маке (слитая bf16 весит ~16 ГБ, на диске ~22 ГБ свободно — продумать путь)
-- [ ] Запуск на Mac (LLMEval)
-- [ ] Запуск на iPhone
+## Status
 
-## Результаты
+- [x] Environment: MacBook Air M4, 16 GB; Python 3.12.14 (Homebrew) in `.venv`; mlx-lm 0.31.3; MLX sees the GPU; torch 2.14 (MPS) for NLLB evaluation
+- [x] Git repository, `.gitignore`, `AGENTS.md`
+- [x] `Qwen/Qwen3-1.7B` quantized to 4 bits → `models/qwen3-1.7b-4bit` (948 MB; 4.501 bits/weight; ~98 tok/s generation, ~1 GB peak memory)
+- [x] Qwen baseline without fine-tuning
+- [x] First Qwen training run (3000 steps: 500 + 2500 after resuming)
+- [x] Qwen evaluation after training (old random test set)
+- [x] Recovered the real NLLB v3 test set: `filter → shuffle(seed=42) → test [2000:4000]`; model-card metrics reproduced exactly
+- [x] Clean test set without training duplicates (1,369 pairs) — the reference for all comparisons
+- [x] Data rebuilt on the NLLB split: 272,704 training pairs after cleaning (60,000 examples for the Mac runs); validation = NLLB dev split
+- [x] **Task 1: NLLB v3 → MLX.** Own M2M100 implementation with KV cache (`nllb_mlx.py`); float32 matches PyTorch (100/100 identical translations, 49.2 / 49.1 on the full clean test); int8 lossless (400 MB); int4 −0.7 / −1.0 (224 MB)
+- [x] MLX int8 published: https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q8 (weights, `nllb_mlx.py`, model card with metrics; download and translation verified from a clean folder)
+- [x] MLX int4 published: https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q4 (for low-memory devices, −1 chrF++)
+- [ ] Native-speaker review of int4 (`human_eval_q4.csv`, 50 of the 1,429 sentences where int4 ≠ f32; delimiter `;`). Rated 11/50: 2 — 27%, 1 — 36%, 0 — 36%. **TODO:** add an "f32 rating" column (2/1/0) and rate f32 on the same rows → `python count_human_eval.py` shows how often int4 is worse than f32. Do not rerun `make_human_eval.py` — it overwrites the ratings
+- [x] Single-sentence benchmarks (`bench_nllb_mlx.py`, 30 sentences per direction): f32 0.19 / 0.12 s, int8 0.07 / 0.06 s, int4 0.05 / 0.03 s (median)
+- [ ] Mixed-precision int4 (embeddings and output layer at 8 bits) — an attempt to recover quality
+- [ ] **Task 2: NLLB v3 → Core AI** (iOS/macOS 27): export from PyTorch, Xcode report of which ops run on the Neural Engine; comparison with Core ML int8 and MLX
+- [x] Gemma 4 E4B trained in Colab (A100 80 GB) on the full training set: 1 epoch, 8,494 steps, 7.5 h; adapter on Google Drive and on HF: https://huggingface.co/Agisight/tyv-gemma4-e4b-lora
+- [x] Gemma evaluation: clean and full test sets, significance (paired bootstrap), normalized chrF++, COMET — **significantly better than NLLB v3 in both directions**
+- [x] Gemma 4 E4B LoRA published: https://huggingface.co/Agisight/tyv-gemma4-e4b-lora (model card with metrics, significance and code)
+- [x] Gemma → MLX 4 and 8 bits (merge and `mlx-vlm` conversion in Colab, cell 11): Agisight/tyv-gemma4-e4b-mlx-4bit (4.9 GB), -8bit (8.4 GB) — private until evaluated
+- [x] Gemma MLX runs on a MacBook Air M4: 8-bit — 0.90 s per sentence, 8.7 GB peak; 4-bit — 0.53 s, 5.1 GB
+- [x] First 100 pairs: 8-bit ≈ bf16 (51.0 / 50.5 vs. 51.1 / 49.6); 4-bit 48.2 / 44.3 — losses come from quantization, not from mlx-vlm
+- [ ] Full clean-test run of Gemma MLX 8-bit (`evaluate_gemma_mlx.py`) — in progress
+- [ ] Update the Gemma MLX model cards with results (`upload_gemma_mlx_card.py`, `QUANT_RESULTS`) and publish the 8-bit model
+- [ ] Careful 4-bit quantization of Gemma: smaller groups, sensitive layers at 8 bits
+- [x] Project on GitHub: https://github.com/Agisight/tyv-translation-mlx (MIT; English/Russian README; the notebook downloads `prepare_data.py` itself; HF model cards link to it)
+- [x] Reproducibility: dataset revision pinned (`DATASET_REVISION = 6d79b8ac…`), exact library versions in `requirements.lock`; the test set is unchanged (md5 of `eval_pairs.jsonl` = 3f4962de…)
+- [x] Qwen experiment moved to `legacy/qwen/`
+- [ ] Run on Mac in an app (MLX Swift / LLMEval)
+- [ ] Run on iPhone
 
-Все будущие сравнения — на **чистом тесте (1369 пар)**.
+## Results
 
-| Дата | Модель | Параметры | Тест | It/sec | Val loss | chrF++ ru→tyv | chrF++ tyv→ru | Вывод |
+All comparisons use the **clean test set (1,369 pairs)** unless noted otherwise.
+
+| Date | Model | Settings | Test | It/sec | Val loss | chrF++ ru→tyv | chrF++ tyv→ru | Notes |
 |---|---|---|---|---|---|---|---|---|
-| 2026-09-30 | NLLB-200-distilled-600M v3 (словарь 16.5K) | карточка модели | тест NLLB, 1999 пар | — | — | 48.5 | 48.1 | воспроизведено один в один (BLEU 19.8 / 23.2) |
-| 2026-09-30 | NLLB-200-distilled-600M v3 (словарь 16.5K) | карточка модели | **чистый тест, 1369 пар** | — | — | **49.2** | **49.1** | **эталон для всех сравнений** (BLEU 19.8 / 23.5) |
-| 2026-09-30 | NLLB v3 → MLX f32 | `nllb_mlx.py`, greedy, KV-cache | чистый тест, 1369 пар | — | — | 49.2 | 49.1 | совпадает с PyTorch до десятых (BLEU 19.8 / 23.5); 1413 МБ; фраза: медиана 0.19 / 0.12 с (ru→tyv / tyv→ru), пик 1491 МБ |
-| 2026-09-30 | NLLB v3 → MLX int8 | group 64 | чистый тест, 1369 пар | — | — | 49.3 | 48.8 | без потерь (BLEU 19.9 / 23.4); 400 МБ; фраза: медиана 0.07 / 0.06 с, пик 596 МБ — **вариант для приложения** |
-| 2026-09-30 | NLLB v3 → MLX int4 | group 64 | чистый тест, 1369 пар | — | — | 48.5 | 48.1 | −0.7 / −1.0 (BLEU 19.3 / 22.2); 224 МБ; фраза: медиана 0.05 / 0.03 с, пик 420 МБ |
-| 2026-09-30 | **Gemma 4 E4B + LoRA** (Colab A100) | r 32, α 64, lr 2e-4, bs 64, seq 256, 1 эпоха (8494 шага, 7.5 ч), весь train 543K | **чистый тест, 1369 пар** | 0.31 | 0.851 | **50.5** | **50.9** | **значимо лучше NLLB** (p = 0.009 / 0.001); BLEU 20.9 / 26.2; norm chrF++ 49.9 / 54.6; COMET tyv→ru 0.827 |
-| 2026-09-30 | Gemma 4 E4B + LoRA | то же | полный тест NLLB, 1999 пар | — | — | 49.7 | 49.9 | против NLLB 48.5 / 48.1 на том же тесте; BLEU 21.1 / 26.0 |
-| 2026-09-29 | Qwen3-1.7B 4bit, без обучения | zero-shot, промпт `ru→tyv:` | старый случайный, n=100 | — | — | 8.4 | 4.5 | не понимает задачу, отвечает как чат-бот |
-| 2026-09-29 | Qwen3-1.7B 4bit + LoRA | layers 8, bs 8, seq 256, lr 1e-4, 3000 it (500 + 2500 resume) | старый случайный, n=200 | ~0.27 | 1.98 | 12.3 | 14.6 | пайплайн работает; модель понимает задачу, но переводит плохо |
+| 2026-09-30 | NLLB-200-distilled-600M v3 (16.5K vocabulary) | model card | NLLB test, 1,999 pairs | — | — | 48.5 | 48.1 | reproduced exactly (BLEU 19.8 / 23.2) |
+| 2026-09-30 | NLLB-200-distilled-600M v3 (16.5K vocabulary) | model card | **clean test, 1,369 pairs** | — | — | **49.2** | **49.1** | **reference for all comparisons** (BLEU 19.8 / 23.5) |
+| 2026-09-30 | NLLB v3 → MLX f32 | `nllb_mlx.py`, greedy, KV cache | clean test | — | — | 49.2 | 49.1 | matches PyTorch to the decimal (BLEU 19.8 / 23.5); 1,413 MB; sentence: median 0.19 / 0.12 s (ru→tyv / tyv→ru), 1,491 MB peak |
+| 2026-09-30 | NLLB v3 → MLX int8 | group 64 | clean test | — | — | 49.3 | 48.8 | lossless (BLEU 19.9 / 23.4); 400 MB; sentence: median 0.07 / 0.06 s, 596 MB peak — **app variant** |
+| 2026-09-30 | NLLB v3 → MLX int4 | group 64 | clean test | — | — | 48.5 | 48.1 | −0.7 / −1.0 (BLEU 19.3 / 22.2); 224 MB; sentence: median 0.05 / 0.03 s, 420 MB peak |
+| 2026-09-30 | **Gemma 4 E4B + LoRA** (Colab A100) | r 32, α 64, lr 2e-4, bs 64, seq 256, 1 epoch (8,494 steps, 7.5 h), full train 543K | **clean test** | 0.31 | 0.851 | **50.5** | **50.9** | **significantly better than NLLB** (p = 0.009 / 0.001); BLEU 20.9 / 26.2; norm. chrF++ 49.9 / 54.6; COMET tyv→ru 0.827 |
+| 2026-09-30 | Gemma 4 E4B + LoRA | same | full NLLB test, 1,999 pairs | — | — | 49.7 | 49.9 | vs. NLLB 48.5 / 48.1 on the same test; BLEU 21.1 / 26.0 |
+| 2026-09-30 | Gemma 4 E4B + LoRA → MLX 8-bit | mlx-vlm, 9.0 bits/weight, 8.4 GB | clean test, **first 100 pairs** | — | — | 51.0 | 50.5 | ≈ bf16 on the same pairs (51.1 / 49.6); 0.90 s per sentence, 8.7 GB; full run in progress |
+| 2026-09-30 | Gemma 4 E4B + LoRA → MLX 4-bit | mlx-vlm, 5.2 bits/weight, 4.9 GB | clean test, **first 100 pairs** | — | — | 48.2 | 44.3 | −2.9 / −5.3 vs. bf16; 0.53 s per sentence, 5.1 GB; output length same as bf16 (no looping) |
+| 2026-09-29 | Qwen3-1.7B 4-bit, no fine-tuning | zero-shot, prompt `ru→tyv:` | old random test, n=100 | — | — | 8.4 | 4.5 | does not understand the task, answers like a chatbot |
+| 2026-09-29 | Qwen3-1.7B 4-bit + LoRA | layers 8, bs 8, seq 256, lr 1e-4, 3000 it (500 + 2500 resumed) | old random test, n=200 | ~0.27 | 1.98 | 12.3 | 14.6 | pipeline works; the model understands the task but translates poorly |
 
-## Заметки
+## Notes
 
-- **2026-09-29.** Системный Python 3.9 не подходит → Python 3.12 из Homebrew.
-- **2026-09-29.** `mlx_lm.convert` упал при сохранении с `IncompleteSnapshotError`
-  (новый `huggingface_hub` требует полный снапшот). Решение: `hf download Qwen/Qwen3-1.7B` перед конвертацией.
-- **2026-09-29.** Для места на диске удалена модель Ollama `qwen3:14b` (9.3 ГБ) и оригинал Qwen3-1.7B из кэша HF.
-- **2026-09-29.** При `max_seq_length: 128` часть переводов обрезалась (тувинская кириллица — до ~290 токенов на 300 символов) → 256. `grad_checkpoint` выключен: памяти хватает (пик 5.8 ГБ), скорость упирается в GPU Air (~0.27–0.37 шага/с).
-- **2026-09-29.** Обучение Qwen прерывалось из-за низкого заряда батареи; продолжено с `--resume-adapter-file`. На батарее скорость падает до ~0.2 шага/с. Нумерация чекпойнтов после продолжения начинается заново.
-- **2026-09-29.** Qwen3-1.7B + LoRA на Air увидела только ~4% датасета; качество низкое. Узкое место — мощность GPU Air. Дальше — обучение в Colab.
-- **2026-09-30.** `eval_for_paper.ipynb` делил данные через `train_test_split` — другой сплит, пересекается с train NLLB; цифры оттуда завышены (52–54). **Не использовать.**
-- **2026-09-30.** Настоящий тест NLLB v3 — из `train_nllb_tyvan_v3_experimental.py`: `filter → shuffle(seed=42) → test [2000:4000]`, та же предобработка (Moses + NFKC), вход без обрезки, `max_new = 32 + 3 × длина входа`. Метрики карточки воспроизведены на Маке точно (48.5 / 48.1) — transformers 5, F32 и MPS дают те же цифры, что Colab.
-- **2026-09-30.** 630 из 1999 тестовых пар дублируют train. На чистом тесте NLLB даже чуть лучше — дубли не завышали результат. Чистый тест (1369 пар) — эталон.
-- Результаты Qwen посчитаны на старом случайном тесте, и адаптер обучался на старом сплите — для статьи Qwen нужно переобучить и оценить на чистом тесте.
-- **2026-09-30.** NLLB — encoder-decoder, `mlx_lm` его не поддерживает → своя реализация M2M100 на MLX (`nllb_mlx.py`): pre-LayerNorm, общие эмбеддинги × √d_model, синусоидальные позиции со сдвигом на pad, старт декодера `[eos, тег языка]`, KV-кэш. f32 выдаёт те же переводы, что PyTorch, буква в букву.
-- **2026-09-30.** Замеры на одну фразу (`bench_nllb_mlx.py`): 30 случайных фраз теста на направление, после прогрева, MacBook Air M4, только терминал, от сети. Медиана времени на фразу:
+- **2026-09-29.** The system Python 3.9 is too old → Python 3.12 from Homebrew.
+- **2026-09-29.** `mlx_lm.convert` failed while saving with `IncompleteSnapshotError` (the new `huggingface_hub` requires a full snapshot). Fix: `hf download Qwen/Qwen3-1.7B` before converting.
+- **2026-09-29.** To free disk space: removed the Ollama model `qwen3:14b` (9.3 GB) and the original Qwen3-1.7B from the HF cache.
+- **2026-09-29.** With `max_seq_length: 128`, some translations were truncated (Tuvan Cyrillic takes up to ~290 tokens per 300 characters) → 256. `grad_checkpoint` off: memory is sufficient (5.8 GB peak); speed is bound by the Air's GPU (~0.27–0.37 steps/s).
+- **2026-09-29.** Qwen training was interrupted by a low battery and resumed with `--resume-adapter-file`. On battery the speed drops to ~0.2 steps/s. Checkpoint numbering restarts after resuming.
+- **2026-09-29.** Qwen3-1.7B + LoRA on the Air saw only ~4% of the dataset; quality is low. The bottleneck is the Air's GPU. Next step: training in Colab.
+- **2026-09-30.** `eval_for_paper.ipynb` split the data with `train_test_split` — a different split that overlaps NLLB's training data; its scores are inflated (52–54). **Do not use.**
+- **2026-09-30.** The real NLLB v3 test set comes from `train_nllb_tyvan_v3_experimental.py`: `filter → shuffle(seed=42) → test [2000:4000]`, with the same preprocessing (Moses + NFKC), untruncated input and `max_new = 32 + 3 × input length`. Model-card metrics reproduced exactly on the Mac (48.5 / 48.1) — transformers 5, float32 and MPS give the same numbers as Colab.
+- **2026-09-30.** 630 of the 1,999 test pairs duplicate training data. NLLB is slightly better on the clean test, so the duplicates did not inflate its score. The clean test (1,369 pairs) is the reference.
+- Qwen results use the old random test, and the Qwen adapter was trained on the old split — for the paper, Qwen must be retrained and evaluated on the clean test. Code is in `legacy/qwen/`.
+- **2026-09-30.** NLLB is an encoder-decoder, which `mlx_lm` does not support → own M2M100 implementation in MLX (`nllb_mlx.py`): pre-LayerNorm, shared embeddings × √d_model, sinusoidal positions offset by the padding index, decoder start `[eos, language tag]`, KV cache. float32 produces exactly the same translations as PyTorch.
+- **2026-09-30.** Single-sentence benchmarks (`bench_nllb_mlx.py`): 30 random test sentences per direction, after warm-up, MacBook Air M4, only the terminal open, on power. Median time per sentence:
 
-  | Вариант | Размер | ru→tyv | tyv→ru | Скорость (медиана) | Пик памяти |
+  | Variant | Size | ru→tyv | tyv→ru | Speed (median) | Peak memory |
   |---|---|---|---|---|---|
-  | f32 | 1413 МБ | 0.19 с | 0.12 с | 79 / 74 ток/с | 1491 МБ |
-  | int8 | 400 МБ | 0.07 с | 0.06 с | 248 / 174 ток/с | 596 МБ |
-  | int4 | 224 МБ | 0.05 с | 0.03 с | 343 / 304 ток/с | 420 МБ |
+  | f32 | 1,413 MB | 0.19 s | 0.12 s | 79 / 74 tok/s | 1,491 MB |
+  | int8 | 400 MB | 0.07 s | 0.06 s | 248 / 174 tok/s | 596 MB |
+  | int4 | 224 MB | 0.05 s | 0.03 s | 343 / 304 tok/s | 420 MB |
 
-  int8 в ~3 раза быстрее f32, int4 — в ~4–5 раз. Скорость в батче (300–600 ток/с) нестабильна между прогонами — в статью не брать.
-- **2026-09-30.** int4 переводит иначе, чем f32, в 1429 из 2738 предложений (52%: ru→tyv 743, tyv→ru 686), но chrF++ падает всего на ~1 пункт — большинство отличий мелкие. Насколько они допустимы — покажет ручная оценка.
-- **2026-09-30.** Пиковая память в батче 32 (2.8–3.8 ГБ) — в основном промежуточные данные длинных предложений, а не веса.
-- **2026-09-30.** int4 на тестовой фразе дал «Даарта мен Кызылче ада-иемче чоруур мен.» вместо «Даарта Кызылче ада-иемче чоруур мен.» — по оценке носителя оба варианта правильные (явное «мен» добавляет акцент). Часть падения chrF++ у int4 может быть допустимыми вариантами, а не ошибками — проверить ручной оценкой.
-- **2026-09-30.** Во время 100-примерной оценки int8 кончилась память системы (открыты Chrome, Xcode, ChatGPT) → замеры скорости того прогона недействительны. Для замеров держать открытым только терминал.
-- **2026-09-30.** Ручная оценка: часть ошибок — из-за орфографического шума в источнике (Ң набрано как Н: «калчан» вместо «калчаң»). Кандидат для статьи: нормализация Н/Ң, Ө/О, Ү/У на входе; связь с раскладками клавиатуры. Отмечать такие случаи в комментариях разметки.
-- **2026-09-30. Gemma 4 E4B vs NLLB v3 — итог.** Чистый тест (1369 пар):
+  int8 is ~3× faster than f32, int4 ~4–5×. Batched throughput (300–600 tok/s) is unstable between runs — do not use it in the paper.
+- **2026-09-30.** int4 translates differently from f32 in 1,429 of 2,738 sentences (52%: ru→tyv 743, tyv→ru 686), yet chrF++ drops only ~1 point — most differences are minor. Native-speaker review will show how many are acceptable.
+- **2026-09-30.** Peak memory with batch 32 (2.8–3.8 GB) is mostly activations for long sentences, not weights.
+- **2026-09-30.** On a test sentence, int4 produced «Даарта мен Кызылче ада-иемче чоруур мен.» instead of «Даарта Кызылче ада-иемче чоруур мен.» — a native speaker judges both correct (the explicit «мен» adds emphasis). Part of int4's chrF++ drop may be acceptable variation rather than errors — to be checked by the human review.
+- **2026-09-30.** During a 100-example int8 evaluation the system ran out of memory (Chrome, Xcode and ChatGPT open) → speed numbers from that run are invalid. Keep only the terminal open for benchmarks.
+- **2026-09-30.** Human review: some errors come from orthographic noise in the source (Ң typed as Н: «калчан» instead of «калчаң»). Paper candidate: normalizing Н/Ң, О/Ө, У/Ү on input; link to keyboard layouts. Mark such cases in the review comments.
+- **2026-09-30. Gemma 4 E4B vs. NLLB v3 — summary.** Clean test (1,369 pairs):
 
-  | Метрика | NLLB v3 | Gemma 4 E4B | Разница | p (paired bootstrap) |
+  | Metric | NLLB v3 | Gemma 4 E4B | Δ | p (paired bootstrap) |
   |---|---|---|---|---|
   | chrF++ ru→tyv | 49.2 | **50.5** | +1.3 | 0.009 * |
   | chrF++ tyv→ru | 49.1 | **50.9** | +1.8 | 0.001 * |
   | BLEU ru→tyv | 19.8 | **20.9** | +1.1 | 0.042 * |
   | BLEU tyv→ru | 23.5 | **26.2** | +2.7 | 0.002 * |
-  | norm chrF++ ru→tyv | 49.0 | **49.9** | +0.9 | — |
-  | norm chrF++ tyv→ru | 53.1 | **54.6** | +1.5 | — |
+  | norm. chrF++ ru→tyv | 49.0 | **49.9** | +0.9 | — |
+  | norm. chrF++ tyv→ru | 53.1 | **54.6** | +1.5 | — |
   | COMET tyv→ru | 0.806 | **0.827** | +0.021 | — |
 
-  Полный тест (1999 пар): Gemma 49.7 / 49.9 против NLLB 48.5 / 48.1. Все метрики согласуются; разница сохраняется и после нормализации форм слов и рода. Носитель: переводы ru→tyv корректные, отличия от эталона — в формулировках. Ошибки tyv→ru бывают лексические («хевис» → «шалаш» вместо «ковёр»); род («она» вместо «он») — не ошибка, в тувинском рода нет.
-- **2026-09-30.** Обучение Gemma: loss вышел на плато после ~7000 шагов (0.861 → 0.852 → 0.851); вторая эпоха вряд ли даст много. Скорость упирается в GPU (~21 пример/с при bs 32 и 64) — больший батч не ускоряет. Colab Pro отключает сессию «за бездействие» даже во время вычислений — кликать в ноутбуке; адаптер и чекпойнты — на Диске.
-- **2026-09-30.** Ноутбук Colab сам определяет режим: адаптер есть → только оценка; нет → обучение; обрыв → продолжение с чекпойнта. Всегда «Выполнить все». Исправления: удаление старого torchao; LoRA только на Linear-слои языковой модели (у Gemma 4 зрение и звук с Gemma4ClippableLinear); warmup_steps вместо warmup_ratio; dataset_num_proc=8 (не проверено).
+  Full test (1,999 pairs): Gemma 49.7 / 49.9 vs. NLLB 48.5 / 48.1. All metrics agree; the gap remains after normalizing word forms and gender. Native speaker: ru→tyv translations are correct, differences from the reference are wording. tyv→ru errors are sometimes lexical («хевис» → «шалаш» instead of «ковёр»); gender («она» instead of «он») is not an error — Tuvan has no grammatical gender.
+- **2026-09-30.** Gemma training: loss plateaued after ~7,000 steps (0.861 → 0.852 → 0.851); a second epoch is unlikely to help much. Speed is GPU-bound (~21 examples/s at batch 32 and 64) — a larger batch does not speed it up. Colab Pro disconnects idle sessions even during computation — interact with the notebook; adapter and checkpoints are on Google Drive.
+- **2026-09-30.** The Colab notebook detects its mode: adapter exists → evaluation only; none → training; interrupted → resume from checkpoint. Always "Run all". Fixes: remove the old torchao; LoRA only on the language model's Linear layers (Gemma 4's vision and audio towers use Gemma4ClippableLinear); warmup_steps instead of warmup_ratio; dataset_num_proc=8 (untested).
+- **2026-09-30.** Gemma → MLX: adapter merge and `mlx_vlm.convert` run in Colab (needs ~50 GB RAM). The current mlx-vlm keeps Gemma 4's PLE layers at higher precision (hence 5.2 bits/weight for "4-bit") — the old bug that produced garbage when PLE layers were quantized did not appear. A test generation in Colab is useless: MLX on Linux is CPU-only and an 8B model hangs for tens of minutes; test on the Mac. Interrupting the conversion leaves an incomplete folder (8-bit: 1.5 GB instead of 8.4) — cell 11 now writes a `.converted` marker and rebuilds incomplete folders.
+- **2026-09-30.** Gemma MLX, first 100 clean-test pairs: bf16 51.1 / 49.6, MLX 8-bit 51.0 / 50.5 (0.90 s per sentence, 8.7 GB), MLX 4-bit 48.2 / 44.3 (0.53 s, 5.1 GB). The mlx-vlm prompt is identical to training (`<bos><|turn>user…<turn|>\n<|turn>model\n`, no double `<bos>`), no looping. Conclusion: the mlx-vlm implementation is correct; the losses come from 4-bit quantization. Gemma is more sensitive to 4 bits than NLLB (−1). For the Mac — 8-bit.
+- **2026-09-30.** Example of acceptable variation (native speaker): «ада-иемге баар мен» (-ге "to them", баар "I'll come/go") vs. «ада-иемче чоруур мен» (-че "towards", чоруур "to travel"). Both correctly render «поеду к родителям» ("I'll go to my parents"); chrF++ counts the difference as an error.

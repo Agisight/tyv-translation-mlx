@@ -32,6 +32,9 @@
 - `nllb_mlx.py`, `convert_nllb_mlx.py`, `evaluate_nllb_mlx.py`, `bench_nllb_mlx.py` — NLLB на MLX.
 - `colab/train_gemma4_tyv_colab.ipynb` — обучение/оценка/конвертация Gemma. Всегда «Выполнить все»:
   режим определяется сам; публикация (ячейка 10) и конвертация (ячейка 11) выключены по умолчанию.
+- `colab/prune_gemma4_vocab_colab.ipynb` — сокращение словаря Gemma (22 755 токенов), только текст, оценка, MLX.
+  Новый токенизатор обязан резать текст так же, как исходный (ячейка 6 проверяет).
+- `evaluate_gemma_mlx.py` — оценка MLX-версий Gemma; бэкенд сам: mlx-vlm (полная) или mlx-lm (сокращённая).
 - `significance.py`, `metrics_extra.py`, `comet_eval.py` — значимость, нормализованный chrF++, COMET.
 - `make_human_eval.py`, `count_human_eval.py`, `human_eval_q4.csv` — ручная оценка носителем.
 - `upload_*.py` — публикация моделей и карточек на Hugging Face.

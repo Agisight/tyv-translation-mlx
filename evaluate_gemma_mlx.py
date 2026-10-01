@@ -1,12 +1,16 @@
 """
-Оценка MLX-версии дообученной Gemma (mlx-vlm) на чистом тесте — те же пары и метрика,
+Оценка MLX-версии дообученной Gemma на чистом тесте — те же пары и метрика,
 что для NLLB и для Gemma bf16 в Colab. Генерация по одной фразе (как в приложении),
 greedy, max_new = min(256, 32 + 3 × длина промпта).
 
 Можно прерывать: уже переведённые пары сохраняются и при повторном запуске пропускаются.
 
-  python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-4bit --limit 100   # быстрая проверка
-  python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-4bit               # весь тест (~1–1.5 ч)
+  python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-8bit --limit 100   # быстрая проверка
+  python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-8bit               # весь тест (~1 ч)
+  python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-pruned-mlx-4bit        # сокращённая (текстовая)
+
+Бэкенд выбирается сам: мультимодальная модель (model_type gemma4) — mlx-vlm,
+текстовая сокращённая (gemma4_text) — mlx-lm. Токенизатор берётся из папки модели.
 """
 import argparse
 import json
@@ -16,8 +20,6 @@ import time
 from pathlib import Path
 
 import mlx.core as mx
-from mlx_vlm import generate, load
-from mlx_vlm.prompt_utils import apply_chat_template
 from sacrebleu.metrics import BLEU, CHRF
 
 from prepare_data import PROMPTS
@@ -47,8 +49,30 @@ def main():
             done[(r["direction"], r["src"])] = r
         print(f"Продолжаю: уже переведено {len(done)}")
 
-    model, processor = load(args.model)
-    tok = getattr(processor, "tokenizer", processor)
+    model_type = json.load(open(Path(args.model) / "config.json")).get("model_type", "")
+    if model_type.endswith("_text"):
+        from mlx_lm import generate as lm_generate, load as lm_load
+        from mlx_lm.sample_utils import make_sampler
+        model, tok = lm_load(args.model)
+        sampler = make_sampler(temp=0.0)
+
+        def make_prompt(text):
+            return tok.apply_chat_template([{"role": "user", "content": text}], add_generation_prompt=True, tokenize=False)
+
+        def run(prompt, max_new):
+            return lm_generate(model, tok, prompt=prompt, max_tokens=max_new, sampler=sampler, verbose=False)
+    else:
+        from mlx_vlm import generate as vlm_generate, load as vlm_load
+        from mlx_vlm.prompt_utils import apply_chat_template
+        model, processor = vlm_load(args.model)
+        tok = getattr(processor, "tokenizer", processor)
+
+        def make_prompt(text):
+            return apply_chat_template(processor, model.config, text, num_images=0)
+
+        def run(prompt, max_new):
+            return vlm_generate(model, processor, prompt, max_tokens=max_new, temperature=0.0, verbose=False)
+    print(f"Бэкенд: {'mlx-lm' if model_type.endswith('_text') else 'mlx-vlm'} ({model_type})")
 
     rows = [json.loads(l) for l in open(args.pairs, encoding="utf-8")]
     chrf, bleu = CHRF(word_order=2), BLEU()
@@ -59,10 +83,10 @@ def main():
             for i, r in enumerate(items, 1):
                 key = (d, r["src"])
                 if key not in done:
-                    prompt = apply_chat_template(processor, model.config, PROMPTS[d].format(src=r["src"]), num_images=0)
+                    prompt = make_prompt(PROMPTS[d].format(src=r["src"]))
                     max_new = min(256, 32 + 3 * len(tok.encode(prompt)))
                     t0 = time.perf_counter()
-                    res = generate(model, processor, prompt, max_tokens=max_new, temperature=0.0, verbose=False)
+                    res = run(prompt, max_new)
                     times.append(time.perf_counter() - t0)
                     text = getattr(res, "text", res)
                     hyp = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
@@ -81,7 +105,7 @@ def main():
         print(f"Время на фразу: медиана {statistics.median(times):.2f} с, среднее {statistics.mean(times):.2f} с "
               f"(n={len(times)}) | пик памяти {peak_mem_mb():.0f} МБ")
     print(f"Переводы: {out_path}")
-    print("Сравнение: NLLB v3 49.2 / 49.1 | Gemma bf16 (Colab) 50.5 / 50.9")
+    print("Сравнение: NLLB v3 49.2 / 49.1 | Gemma bf16 50.5 / 50.9 | MLX 8 бит 50.3 / 50.9 | сокращённая bf16 50.5 / 50.8")
 
 
 if __name__ == "__main__":

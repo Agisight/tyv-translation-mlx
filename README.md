@@ -9,6 +9,8 @@ low-resource Turkic language with roughly 280,000 speakers.
   with a KV cache. float32 reproduces PyTorch exactly; the 8-bit version is lossless and ~3× faster.
 - **Gemma 4 E4B + LoRA** — a fine-tuned LLM that significantly outperforms the specialized NLLB v3
   model in both directions, converted to MLX for Mac.
+- **Vocabulary pruning** — Gemma's 262K-token vocabulary cut to 22.7K tokens and the vision/audio towers
+  removed: half the size (4.3B parameters) with the same quality.
 - **A clean test set and honest evaluation** — chrF++, BLEU, COMET, paired bootstrap significance,
   and a normalized chrF++ that does not penalize gender (Tuvan has none) or word forms.
 
@@ -26,6 +28,8 @@ Clean test set, 1,369 pairs (see [Test set](#test-set)). Latency: median per sen
 | **Gemma 4 E4B + LoRA, bf16** | 16 GB | **50.5** | **50.9** | **0.827** | — |
 | **Gemma 4 E4B + LoRA, MLX 8-bit** | 8.4 GB | **50.3** | **50.9** | — | 0.89 s |
 | Gemma 4 E4B + LoRA, MLX 4-bit ¹ | 4.9 GB | 48.2 | 44.3 | — | 0.53 s |
+| **Gemma, pruned vocabulary, text-only, bf16** | 8.0 GB | **50.5** | **50.8** | — | — |
+| Gemma, pruned, MLX 4-bit ¹ | 2.3 GB | 47.9 | 43.3 | — | 0.94 s |
 
 ¹ First 100 pairs only (bf16 on the same pairs: 51.1 / 49.6) — 4-bit quantization hurts Gemma noticeably, while 8-bit is lossless.
 
@@ -109,7 +113,14 @@ hf download Agisight/tyv-gemma4-e4b-mlx-8bit --local-dir models/tyv-gemma4-e4b-m
 python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-8bit   # resumable; ~1 hour on a MacBook Air
 ```
 
-### 6. Metrics and significance
+### 6. Vocabulary pruning (Google Colab, A100)
+
+Open `colab/prune_gemma4_vocab_colab.ipynb` in Colab (A100, High-RAM) and run all cells. It selects the
+tokens used in the training data, rebuilds the BPE tokenizer and verifies it tokenizes exactly like the
+original, merges the adapter, keeps only the language model, slices the vocabulary-sized tables, evaluates
+on the clean test set, and converts to MLX 8 and 4 bits (~1–1.5 hours).
+
+### 7. Metrics and significance
 
 ```bash
 python significance.py eval_results_nllb.jsonl eval_results_gemma4.json      # paired bootstrap
@@ -124,7 +135,7 @@ pip install -r requirements-comet.txt
 python comet_eval.py eval_results_nllb.jsonl eval_results_gemma4.json
 ```
 
-### 7. Small LLM on a MacBook (MLX LoRA)
+### 8. Small LLM on a MacBook (MLX LoRA)
 
 An early experiment: Qwen3-1.7B fine-tuned on a MacBook Air with `mlx_lm.lora` (`legacy/qwen/`). It works end to end but reaches only ~12–15 chrF++ — the laptop GPU
 saw ~4% of the data. Step-by-step instructions are in [README.ru.md](README.ru.md).
@@ -144,8 +155,9 @@ comparison with earlier work, on the full 1,999 pairs. Conclusions are the same 
 | `evaluate_nllb.py` | NLLB v3 baseline in PyTorch (same settings as its training) |
 | `nllb_mlx.py`, `convert_nllb_mlx.py` | NLLB (M2M100) in MLX; weight conversion and quantization |
 | `evaluate_nllb_mlx.py`, `bench_nllb_mlx.py` | MLX quality evaluation; single-sentence latency and memory |
-| `evaluate_gemma_mlx.py` | Gemma MLX evaluation (mlx-vlm), per-sentence latency and memory |
+| `evaluate_gemma_mlx.py` | Gemma MLX evaluation (mlx-vlm or mlx-lm), per-sentence latency and memory |
 | `colab/train_gemma4_tyv_colab.ipynb` | Gemma 4 E4B LoRA training, evaluation, MLX conversion |
+| `colab/prune_gemma4_vocab_colab.ipynb` | Gemma vocabulary pruning, text-only model, evaluation, MLX |
 | `significance.py`, `metrics_extra.py`, `comet_eval.py` | Significance test, normalized chrF++, COMET |
 | `make_human_eval.py`, `count_human_eval.py` | Native-speaker review of quantization differences |
 | `upload_*.py` | Publishing models and model cards to Hugging Face |

@@ -29,12 +29,15 @@ Clean test set, 1,369 pairs (see [Test set](#test-set)). Latency: median per sen
 | **Gemma 4 E4B + LoRA, MLX 8-bit** | 8.4 GB | **50.3** | **50.9** | — | 0.89 s |
 | Gemma 4 E4B + LoRA, MLX 4-bit ¹ | 4.9 GB | 48.2 | 44.3 | — | 0.53 s |
 | **Gemma, pruned vocabulary, text-only, bf16** | 8.0 GB | **50.5** | **50.8** | — | — |
+| Gemma, pruned, MLX 5-bit | 2.7 GB | 49.7 | 49.9 | — | 0.93 s |
 | Gemma, pruned, MLX 4-bit ¹ | 2.3 GB | 47.9 | 43.3 | — | 0.94 s |
 
 ¹ First 100 pairs only (bf16 on the same pairs: 51.1 / 49.6) — 4-bit quantization hurts Gemma noticeably, while 8-bit is lossless.
 
 Gemma vs. NLLB v3: p = 0.009 (ru→tyv) and p = 0.001 (tyv→ru), paired bootstrap on chrF++.
 On the full 1,999-pair NLLB test set: Gemma 49.7 / 49.9 vs. NLLB 48.5 / 48.1.
+
+Quantization of the pruned model: 8 bits are lossless, 5 bits cost ~1 point (significant vs. bf16, p ≤ 0.004; on par with NLLB), below 5 bits quality drops sharply — translation into Russian is the most sensitive. Full sweep in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ## Models
 

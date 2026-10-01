@@ -24,7 +24,10 @@ Clean test set, 1,369 pairs (see [Test set](#test-set)). Latency: median per sen
 | NLLB v3, MLX 8-bit | 400 MB | 49.3 | 48.8 | 0.806 | 0.07 / 0.06 s |
 | NLLB v3, MLX 4-bit | 224 MB | 48.5 | 48.1 | 0.800 | 0.05 / 0.03 s |
 | **Gemma 4 E4B + LoRA, bf16** | 16 GB | **50.5** | **50.9** | **0.827** | — |
-| Gemma 4 E4B + LoRA, MLX 4-bit | 4.9 GB | in progress | in progress | — | — |
+| **Gemma 4 E4B + LoRA, MLX 8-bit** | 8.4 GB | **50.3** | **50.9** | — | 0.89 s |
+| Gemma 4 E4B + LoRA, MLX 4-bit ¹ | 4.9 GB | 48.2 | 44.3 | — | 0.53 s |
+
+¹ First 100 pairs only (bf16 on the same pairs: 51.1 / 49.6) — 4-bit quantization hurts Gemma noticeably, while 8-bit is lossless.
 
 Gemma vs. NLLB v3: p = 0.009 (ru→tyv) and p = 0.001 (tyv→ru), paired bootstrap on chrF++.
 On the full 1,999-pair NLLB test set: Gemma 49.7 / 49.9 vs. NLLB 48.5 / 48.1.
@@ -37,7 +40,7 @@ On the full 1,999-pair NLLB test set: Gemma 49.7 / 49.9 vs. NLLB 48.5 / 48.1.
 | [Agisight/nllb-rus-tyv-v3-mlx-q8](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q8) | MLX 8-bit | Mac (recommended) |
 | [Agisight/nllb-rus-tyv-v3-mlx-q4](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q4) | MLX 4-bit | Mac, low memory |
 | [Agisight/tyv-gemma4-e4b-lora](https://huggingface.co/Agisight/tyv-gemma4-e4b-lora) | LoRA adapter for `google/gemma-4-E4B-it` | GPU (transformers + peft) |
-| Agisight/tyv-gemma4-e4b-mlx-4bit / -8bit | MLX | Mac — released after evaluation |
+| [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) | MLX 8-bit (merged) | Mac, 16 GB+ (recommended) |
 
 ## Quick start: translate
 
@@ -59,7 +62,7 @@ python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q8 --dir tyv-ru --text "�
 **Gemma on a Mac (MLX):** the prompt format is `ru→tyv: <text>` or `tyv→ru: <text>`.
 
 ```bash
-mlx_vlm.generate --model Agisight/tyv-gemma4-e4b-mlx-4bit \
+mlx_vlm.generate --model Agisight/tyv-gemma4-e4b-mlx-8bit \
   --prompt "ru→tyv: Завтра я поеду в Кызыл к родителям." --max-tokens 64 --temperature 0.0
 ```
 
@@ -99,7 +102,14 @@ downloads `prepare_data.py` from this repository, trains on the full training se
 ~7.5 hours), evaluates on the clean and full test sets, and keeps checkpoints on Google Drive so an
 interrupted run resumes. Publishing (cell 10) and MLX conversion (cell 11) are off by default.
 
-### 5. Metrics and significance
+### 5. Gemma on MLX (Mac)
+
+```bash
+hf download Agisight/tyv-gemma4-e4b-mlx-8bit --local-dir models/tyv-gemma4-e4b-mlx-8bit
+python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-8bit   # resumable; ~1 hour on a MacBook Air
+```
+
+### 6. Metrics and significance
 
 ```bash
 python significance.py eval_results_nllb.jsonl eval_results_gemma4.json      # paired bootstrap
@@ -114,7 +124,7 @@ pip install -r requirements-comet.txt
 python comet_eval.py eval_results_nllb.jsonl eval_results_gemma4.json
 ```
 
-### 6. Small LLM on a MacBook (MLX LoRA)
+### 7. Small LLM on a MacBook (MLX LoRA)
 
 An early experiment: Qwen3-1.7B fine-tuned on a MacBook Air with `mlx_lm.lora` (`legacy/qwen/`). It works end to end but reaches only ~12–15 chrF++ — the laptop GPU
 saw ~4% of the data. Step-by-step instructions are in [README.ru.md](README.ru.md).
@@ -134,6 +144,7 @@ comparison with earlier work, on the full 1,999 pairs. Conclusions are the same 
 | `evaluate_nllb.py` | NLLB v3 baseline in PyTorch (same settings as its training) |
 | `nllb_mlx.py`, `convert_nllb_mlx.py` | NLLB (M2M100) in MLX; weight conversion and quantization |
 | `evaluate_nllb_mlx.py`, `bench_nllb_mlx.py` | MLX quality evaluation; single-sentence latency and memory |
+| `evaluate_gemma_mlx.py` | Gemma MLX evaluation (mlx-vlm), per-sentence latency and memory |
 | `colab/train_gemma4_tyv_colab.ipynb` | Gemma 4 E4B LoRA training, evaluation, MLX conversion |
 | `significance.py`, `metrics_extra.py`, `comet_eval.py` | Significance test, normalized chrF++, COMET |
 | `make_human_eval.py`, `count_human_eval.py` | Native-speaker review of quantization differences |

@@ -5,7 +5,7 @@
   python upload_gemma_mlx_card.py            # обе: 4-bit и 8-bit
   python upload_gemma_mlx_card.py --bits 4
 
-Когда посчитаем качество 4/8 бит на Маке — впиши цифры в QUANT_RESULTS и запусти снова.
+Цифры — в QUANT_RESULTS / SPEED; после изменения запусти снова.
 """
 import argparse
 
@@ -18,18 +18,28 @@ DATASET = "Agisight/tyv-rus-200k"
 GITHUB = "https://github.com/Agisight/tyv-translation-mlx"
 
 SIZES = {4: ("4.9 GB", "5.2"), 8: ("8.4 GB", "9.0")}
+SPEED = {4: "0.53 s per sentence (median), 5.1 GB peak memory",
+         8: "0.89 s per sentence (median), 8.9 GB peak memory"}
 
-# chrF++ ru→tyv / tyv→ru на чистом тесте (1369 пар) для квантизованных версий.
-# None = ещё не посчитано на Маке.
-QUANT_RESULTS = {4: None, 8: None}
+# chrF++ ru→tyv / tyv→ru для квантизованных версий (MacBook Air M4, evaluate_gemma_mlx.py)
+QUANT_RESULTS = {
+    8: ("50.3", "50.9", "full clean test, 1,369 pairs"),
+    4: ("48.2", "44.3", "first 100 pairs only; bf16 on the same pairs: 51.1 / 49.6"),
+}
 
 
 def card(bits: int) -> str:
     size, bpw = SIZES[bits]
     other = 8 if bits == 4 else 4
     r = QUANT_RESULTS[bits]
-    quant_line = (f"| This {bits}-bit MLX model | **{r[0]}** | **{r[1]}** |" if r
-                  else f"| This {bits}-bit MLX model | evaluation in progress | evaluation in progress |")
+    quant_line = f"| This {bits}-bit MLX model ({r[2]}) | {r[0]} | {r[1]} |"
+    verdict = ("**Recommended MLX version.** On the full clean test it matches the bf16 model "
+               "(50.3 / 50.9 vs. 50.5 / 50.9) and stays above NLLB v3 (49.2 / 49.1)."
+               if bits == 8 else
+               "**Not recommended.** 4-bit quantization noticeably hurts this model: on the first 100 test "
+               "pairs it loses 2.9 / 5.3 chrF++ against bf16, while the 8-bit version is lossless. "
+               "Use [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) "
+               "unless memory is the hard limit. A more careful 4-bit quantization is planned.")
     return f"""---
 library_name: mlx
 base_model: {BASE}
@@ -59,6 +69,7 @@ weights and quantized to **{bits} bits** for Apple Silicon with
 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm). Runs fully offline on a Mac.
 
 - Size: **{size}** ({bpw} bits per weight on average; some layers are kept at higher precision).
+- Speed on a MacBook Air M4 (16 GB): {SPEED[bits]}.
 - Other variant: [Agisight/tyv-gemma4-e4b-mlx-{other}bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-{other}bit).
 
 ## Results
@@ -71,6 +82,8 @@ duplicates removed). chrF++, greedy decoding.
 | NLLB v3 ([{NLLB}](https://huggingface.co/{NLLB})) | 49.2 | 49.1 |
 | Fine-tuned Gemma 4 E4B, bf16 (adapter) | **50.5** | **50.9** |
 {quant_line}
+
+{verdict}
 
 The bf16 adapter significantly outperforms NLLB v3 in both directions (paired bootstrap,
 p < 0.05) and also on BLEU, normalized chrF++ and COMET — see the

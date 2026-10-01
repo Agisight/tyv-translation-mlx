@@ -1,212 +1,207 @@
-# Тувинский переводчик на MLX — подробная инструкция для Mac (рус.)
-
-> Краткий обзор проекта, результаты и ссылки на модели — в [README.md](README.md) (англ.). Журнал экспериментов — [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md).
-> Здесь — пошаговая установка на MacBook и решения проблем, с которыми мы столкнулись.
+# Машинный перевод русский ↔ тувинский на устройствах Apple
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Agisight/tyv-translation-mlx/blob/main/colab/train_gemma4_tyv_colab.ipynb)
 
-LoRA-дообучение Qwen3-1.7B (4 бита) на корпусе
-[Agisight/tyv-rus-200k](https://huggingface.co/datasets/Agisight/tyv-rus-200k)
-прямо на MacBook Air M4. Цель первого прогона — проверить весь путь:
-обучение, перевод в терминале, запуск на Mac и iPhone. Качество улучшаем потом.
+> English version: [README.md](README.md). Журнал экспериментов: [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md) (рус.), [EXPERIMENTS.md](EXPERIMENTS.md) (англ.).
 
-Текущий статус и результаты — в [EXPERIMENTS.md](EXPERIMENTS.md).
-Правила для ИИ-агентов — в [AGENTS.md](AGENTS.md).
+Код, подготовка данных и оценка для офлайн-перевода русский ↔ тувинский. Тувинский — тюркский язык
+примерно с 280 тысячами носителей, для которого мало данных для обучения моделей.
 
-> **Про терминал.** zsh на Маке не понимает комментарии `#` во вставленных командах.
-> Все команды ниже можно копировать как есть.
+- **NLLB v3 на MLX** — собственная реализация энкодер-декодера NLLB (M2M100) на MLX с KV-кэшем.
+  float32 воспроизводит PyTorch в точности; 8-битная версия без потерь и примерно в 3 раза быстрее.
+- **Gemma 4 E4B + LoRA** — дообученная LLM, которая значимо превосходит специализированную модель
+  NLLB v3 в обе стороны; сконвертирована в MLX для Мака.
+- **Сокращение словаря** — словарь Gemma уменьшен с 262 тысяч токенов до 22.7 тысячи, блоки зрения и
+  звука убраны: модель вдвое меньше (4.3 млрд параметров) при том же качестве; в 6 битах — 3.2 ГБ, и всё
+  ещё лучше NLLB.
+- **Чистый тест и честная оценка** — chrF++, BLEU, COMET, статистическая значимость (paired bootstrap)
+  и нормализованный chrF++, который не штрафует за род (в тувинском его нет) и формы слов.
 
----
+## Результаты
 
-## 0. Проверить Мак
+Чистый тест, 1369 пар (см. [Тест](#тест)). Время — медиана на одно предложение, MacBook Air M4 (16 ГБ).
 
-```bash
-uname -m
-sysctl -n hw.memsize | awk '{print $1/1073741824 " GB"}'
-df -h ~ | tail -1
-```
+| Модель | Размер | chrF++ ru→tyv | chrF++ tyv→ru | COMET tyv→ru | Время |
+|---|---|---|---|---|---|
+| NLLB v3, PyTorch / MLX float32 | 1.4 ГБ | 49.2 | 49.1 | 0.806 | 0.19 / 0.12 с |
+| NLLB v3, MLX 8 бит | 400 МБ | 49.3 | 48.8 | 0.806 | 0.07 / 0.06 с |
+| NLLB v3, MLX 4 бита | 224 МБ | 48.5 | 48.1 | 0.800 | 0.05 / 0.03 с |
+| **Gemma 4 E4B + LoRA, bf16** | 16 ГБ | **50.5** | **50.9** | **0.827** | — |
+| **Gemma 4 E4B + LoRA, MLX 8 бит** | 8.4 ГБ | **50.3** | **50.9** | — | 0.89 с |
+| Gemma 4 E4B + LoRA, MLX 4 бита ¹ | 4.9 ГБ | 48.2 | 44.3 | — | 0.53 с |
+| **Gemma, сокращённый словарь, только текст, bf16** | 8.0 ГБ | **50.5** | **50.8** | — | — |
+| **Gemma, сокращённая, MLX 6 бит (для устройств)** | **3.2 ГБ** | **50.2** | **50.8** | — | 0.79 с |
+| Gemma, сокращённая, MLX 5 бит | 2.7 ГБ | 49.7 | 49.9 | — | 0.93 с |
+| Gemma, сокращённая, MLX 4 бита ¹ | 2.3 ГБ | 47.9 | 43.3 | — | 0.94 с |
 
-Нужно: `arm64`, от 16 ГБ памяти, от 15 ГБ свободного места.
-Если места мало — освободи заранее: при обучении macOS пишет своп на диск.
+¹ Только первые 100 пар (bf16 на тех же парах: 51.1 / 49.6) — 4-битная квантизация заметно ухудшает
+Gemma, тогда как 8 бит — без потерь.
 
-## 1. Python и окружение (один раз)
+Gemma против NLLB v3: p = 0.009 (ru→tyv) и p = 0.001 (tyv→ru), paired bootstrap по chrF++.
+На полном тесте NLLB из 1999 пар: Gemma 49.7 / 49.9 против NLLB 48.5 / 48.1.
 
-Системный `python3` на Маке — 3.9, он не подходит. Ставим 3.12 через Homebrew
-и создаём окружение именно им:
+Квантизация сокращённой модели: **6 бит сохраняют качество полной модели** (против bf16 p = 0.12 / 0.29;
+против NLLB значимо лучше, p = 0.029 / 0.002) при 3.2 ГБ — в 5 раз меньше дообученной модели на 16 ГБ.
+5 бит теряют около 1 пункта (значимо), ниже 5 бит качество резко падает — сильнее всего страдает перевод
+на русский. Полный перебор — в [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md).
 
-```bash
-brew install python@3.12
-python3.12 -m venv .venv
-source .venv/bin/activate
-python --version
-pip install -U pip
-pip install "mlx-lm[train]" datasets sacrebleu
-```
+## Модели
 
-Проверка:
+| Модель | Формат | Где запускать |
+|---|---|---|
+| [Agisight/nllb-rus-tyv-v3-dict_16.5k](https://huggingface.co/Agisight/nllb-rus-tyv-v3-dict_16.5k) | PyTorch, float32 | где угодно (transformers) |
+| [Agisight/nllb-rus-tyv-v3-mlx-q8](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q8) | MLX 8 бит | Мак (рекомендуется) |
+| [Agisight/nllb-rus-tyv-v3-mlx-q4](https://huggingface.co/Agisight/nllb-rus-tyv-v3-mlx-q4) | MLX 4 бита | Мак, мало памяти |
+| [Agisight/tyv-gemma4-e4b-lora](https://huggingface.co/Agisight/tyv-gemma4-e4b-lora) | LoRA-адаптер для `google/gemma-4-E4B-it` | GPU (transformers + peft) |
+| [Agisight/tyv-gemma4-e4b-pruned-mlx-6bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-pruned-mlx-6bit) | MLX 6 бит, сокращённый словарь, только текст | Мак и устройства (**рекомендуется**) |
+| [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) | MLX 8 бит (слитая, полный словарь) | Мак, от 16 ГБ |
 
-```bash
-python -c "import mlx.core as mx; print(mx.default_device())"
-python -c "import mlx_lm; print(mlx_lm.__version__)"
-```
+## Быстрый старт: перевести
 
-Должно быть `Device(gpu, 0)` и версия mlx-lm.
-
-**В каждом новом терминале** сначала: `cd` в папку проекта и `source .venv/bin/activate`.
-
-## 2. Модель: скачать и сжать в 4 бита (один раз)
-
-Сначала полностью скачиваем репозиторий модели, потом конвертируем.
-Без первой строки новый `huggingface_hub` падает при сохранении с
-`IncompleteSnapshotError`.
-
-```bash
-hf download Qwen/Qwen3-1.7B
-mlx_lm.convert --hf-path Qwen/Qwen3-1.7B -q --q-bits 4 --mlx-path models/qwen3-1.7b-4bit
-du -sh models/qwen3-1.7b-4bit
-mlx_lm.generate --model models/qwen3-1.7b-4bit --prompt "Hello" --max-tokens 30
-```
-
-Ожидаемо: около 950 МБ, ответ модели (с тегом `<think>` — это нормально).
-Потом удали оригинал из кэша, он больше не нужен (около 4 ГБ):
+Все команды — из корня репозитория.
 
 ```bash
-rm -rf ~/.cache/huggingface/hub/models--Qwen--Qwen3-1.7B
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## 3. Данные
+**NLLB v3 на Маке (MLX, быстрее всего):**
+
+```bash
+hf download Agisight/nllb-rus-tyv-v3-mlx-q8 --local-dir models/nllb-v3-mlx-q8
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q8 --text "Завтра я поеду в Кызыл к родителям."
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q8 --dir tyv-ru --text "Экии!"
+```
+
+**Gemma на Маке (MLX):** формат промпта — `ru→tyv: <текст>` или `tyv→ru: <текст>`.
+
+```bash
+mlx_lm.generate --model Agisight/tyv-gemma4-e4b-pruned-mlx-6bit \
+  --prompt "ru→tyv: Завтра я поеду в Кызыл к родителям." --max-tokens 64 --temp 0.0
+```
+
+**Gemma на GPU (transformers + peft):** пример кода — в
+[карточке адаптера](https://huggingface.co/Agisight/tyv-gemma4-e4b-lora).
+
+## Приложение для Мака, iPad и iPhone
+
+<p>
+  <img src="app/screenshot.png" alt="Тыва Переводчик на Маке: два предложения с русского на тувинский, 2.9 с" width="49%">
+  <img src="app/screenshot2.png" alt="Тыва Переводчик на Маке: «Аштай бердим» → «Я проголодался», 0.7 с" width="49%">
+</p>
+
+SwiftUI-приложение в [`app/`](app/) запускает сокращённую 6-битную Gemma полностью офлайн через
+[mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm): около 0.9 с на предложение на MacBook Air M4.
+Промпт собирается ровно как при обучении, генерация жадная.
+
+```bash
+brew install xcodegen
+cd app && xcodegen && open TyvaTranslator.xcodeproj
+```
+
+В Signing & Capabilities выбери свою команду, цель — **My Mac**, нажми ⌘R. При первом запуске
+приложение скачает модель (~3.4 ГБ), дальше работает без интернета. Для iPad и iPhone нужно реальное
+устройство с 8 ГБ памяти (iPad с чипом M, iPhone 15 Pro и новее) — в симуляторе нет видеокарты Apple
+Silicon для MLX. Подробности: [app/README.ru.md](app/README.ru.md).
+
+## Воспроизвести с нуля
+
+### 1. Данные и тест
 
 ```bash
 python prepare_data.py
-wc -l data/*.jsonl
 ```
 
-Тест-сет по умолчанию — **тот же held-out тест, на котором оценивалась NLLB v3**
-(`filter → shuffle(seed=42) → dev [0:2000], test [2000:4000]`, как в
-`train_nllb_tyvan_v3_experimental.py`). Из него дополнительно убраны пары,
-дублирующие train. Valid — dev-сплит NLLB.
+Скачивает [Agisight/tyv-rus-200k](https://huggingface.co/datasets/Agisight/tyv-rus-200k) (версия
+зафиксирована) и собирает сплит NLLB v3, чистый тест и обучающие файлы в формате чата в `data/`.
 
-Не используй тест из `eval_for_paper.ipynb`: там другой сплит, он пересекается
-с обучающими данными NLLB, и цифры завышены.
-
-Проверка, что тест совпал — прогон NLLB (должно выйти около 48.5 / 48.1 на полном тесте):
+### 2. Эталон NLLB v3
 
 ```bash
-pip install torch sentencepiece sacremoses
-python evaluate_nllb.py --bs 32
+python prepare_data.py --keep-dup-test && python evaluate_nllb.py   # воспроизводит карточку модели: 48.5 / 48.1
+python prepare_data.py && python evaluate_nllb.py                   # чистый тест: 49.2 / 49.1
 ```
 
-## 4. Базовая линия до обучения
+### 3. NLLB v3 → MLX
 
 ```bash
-python legacy/qwen/translate.py --no-adapter "Как ваше здоровье?"
-python legacy/qwen/evaluate.py --no-adapter --limit 100
+python convert_nllb_mlx.py --bits 8          # также: без флага (float32), --bits 4, --dtype float16
+python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q8
+python bench_nllb_mlx.py --model models/nllb-v3-mlx-q8
 ```
 
-Модель без обучения не понимает задачу и отвечает как чат-бот. Это нормально.
-Запиши цифры в `EXPERIMENTS.md`.
+### 4. Обучить Gemma 4 E4B + LoRA (Google Colab, A100)
 
-## 5. Обучение (около часа)
+Нажми **Open in Colab** выше, выбери среду A100 с High-RAM и «Выполнить все». Ноутбук сам скачивает
+`prepare_data.py` из этого репозитория, обучает на всём train (1 эпоха, ~7.5 часа), оценивает на чистом
+и полном тесте и хранит чекпойнты на Google Диске, так что прерванное обучение продолжается.
+Публикация (ячейка 10) и конвертация в MLX (ячейка 11) по умолчанию выключены.
 
-Подключи зарядку, поставь Мак на подставку, закрой браузер, крышку не закрывай.
+### 5. Gemma на MLX (Мак)
 
 ```bash
-caffeinate -i mlx_lm.lora --config legacy/qwen/lora_config.yaml
+hf download Agisight/tyv-gemma4-e4b-mlx-8bit --local-dir models/tyv-gemma4-e4b-mlx-8bit
+python evaluate_gemma_mlx.py --model models/tyv-gemma4-e4b-mlx-8bit   # можно прерывать; ~1 час на MacBook Air
 ```
 
-- Через 20 шагов появится строка с `It/sec`. Время прогона ≈ 3000 / It/sec секунд.
-- `Val loss` каждые 250 шагов должен падать.
-- Нехватка памяти → в `legacy/qwen/lora_config.yaml` `batch_size: 4`, потом `max_seq_length: 96`.
-- Адаптер сохраняется каждые 500 шагов. Продолжить прерванный прогон:
+### 6. Сокращение словаря (Google Colab, A100)
+
+Открой `colab/prune_gemma4_vocab_colab.ipynb` в Colab (A100, High-RAM) и «Выполнить все». Ноутбук
+выбирает токены из обучающих данных, пересобирает BPE-токенизатор и проверяет, что он режет текст точно
+так же, как исходный, сливает адаптер, оставляет только языковую модель, вырезает строки таблиц словаря,
+оценивает на чистом тесте и конвертирует в MLX 8 и 4 бита (~1–1.5 часа).
+
+### 7. Метрики и значимость
 
 ```bash
-caffeinate -i mlx_lm.lora --config legacy/qwen/lora_config.yaml --resume-adapter-file adapters/adapters.safetensors
+python significance.py eval_results_nllb.jsonl eval_results_gemma4.json      # paired bootstrap
+python metrics_extra.py eval_results_nllb.jsonl eval_results_gemma4.json     # нормализованный chrF++
 ```
 
-## 6. Проверить перевод
+COMET нужно отдельное окружение (см. `requirements-comet.txt`):
 
 ```bash
-python legacy/qwen/translate.py "Как ваше здоровье?"
-python legacy/qwen/translate.py --dir tyv-ru "Кадыыңар кандыг-дыр?"
-python legacy/qwen/evaluate.py --limit 500
+python3.12 -m venv .venv-comet && source .venv-comet/bin/activate
+pip install -r requirements-comet.txt
+python comet_eval.py eval_results_nllb.jsonl eval_results_gemma4.json
 ```
 
-Переводы сохраняются в `eval_results.jsonl` — их полезно просмотреть глазами.
-Запиши результат в `EXPERIMENTS.md`.
+### 8. Небольшая LLM на MacBook (MLX LoRA)
 
-## 7. Собрать готовую модель
+Ранний эксперимент: Qwen3-1.7B, дообученная на MacBook Air через `mlx_lm.lora` (`legacy/qwen/`).
+Весь путь работает, но качество всего ~12–15 chrF++ — видеокарта ноутбука успела показать модели около
+4% данных. Пошаговая инструкция — в [legacy/qwen/README.ru.md](legacy/qwen/README.ru.md).
 
-```bash
-mlx_lm.fuse --model models/qwen3-1.7b-4bit --adapter-path adapters --save-path models/tyv-qwen3-1.7b
-python legacy/qwen/translate.py --model models/tyv-qwen3-1.7b --no-adapter "Спасибо"
-```
+## Тест
 
-Папка около 1 ГБ — это модель для Mac и iPhone.
+Тест — это отложенная часть данных, на которой обучалась и оценивалась NLLB v3: `filter →
+shuffle(seed=42) → пары 2000–4000` датасета. 630 из его 1999 пар встречаются и в обучающих данных
+(в датасете есть повторы), поэтому основные результаты — на **чистой части из 1369 пар**, а для
+сравнения с предыдущей работой — на полных 1999 парах. Выводы на обоих совпадают.
 
-## 8. Выложить на Hugging Face
+## Репозиторий
 
-```bash
-hf auth login
-hf upload Agisight/tyv-qwen3-1.7b-4bit models/tyv-qwen3-1.7b --repo-type model --private
-```
-
-## 9. Запуск на Mac и iPhone
-
-**MLX не работает в симуляторе iOS** — ему нужен настоящий GPU.
-Проверяй на Маке (как Mac-приложение) или на реальном iPhone.
-
-Самый быстрый путь — демо-приложение LLMEval:
-
-1. `git clone https://github.com/ml-explore/mlx-swift-examples`
-2. Открой проект, выбери схему **LLMEval**.
-3. Замени модель на свою: `Agisight/tyv-qwen3-1.7b-4bit` или путь к `models/tyv-qwen3-1.7b`.
-4. Отключи режим рассуждений: передай в шаблон `enable_thinking: false`
-   (в `UserInput` это `additionalContext`).
-5. Промпт — в формате обучения: `ru→tyv: Как ваше здоровье?`
-6. Запусти на **My Mac**, потом на iPhone (нужен твой Team в Signing).
-
-Модель около 1 ГБ — в пределах рекомендации Apple держать модели на iOS до ~2 ГБ.
-
----
-
-## NLLB v3 на MLX (Задача 1)
-
-NLLB — encoder-decoder, `mlx_lm` его не поддерживает, поэтому архитектура M2M100
-реализована вручную в `nllb_mlx.py` (с KV-кэшем для быстрой генерации).
-
-```bash
-python convert_nllb_mlx.py
-python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-f32 --limit 100
-python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-f32
-```
-
-Точная копия (f32) должна дать то же, что PyTorch: **49.2 / 49.1** на чистом тесте.
-Потом лёгкие варианты:
-
-```bash
-python convert_nllb_mlx.py --dtype float16
-python convert_nllb_mlx.py --bits 8
-python convert_nllb_mlx.py --bits 4
-python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4
-python evaluate_nllb_mlx.py --model models/nllb-v3-mlx-q4 --text "Как ваше здоровье?"
-```
-
-Скорость и память на одну фразу (среднее по 30 фразам) и таблица для ручной оценки:
-
-```bash
-for v in f32 q8 q4; do python bench_nllb_mlx.py --model models/nllb-v3-mlx-$v; done
-python make_human_eval.py
-```
-
-## Частые проблемы
-
-| Симптом | Причина и решение |
+| Путь | Что делает |
 |---|---|
-| `command not found: python3.12` | Python не установлен: `brew install python@3.12` |
-| `python --version` показывает 3.9 | Окружение создано не тем Python: удали `.venv`, создай через `python3.12 -m venv .venv` |
-| Ошибки `awk`/`tail` с кусками русского текста | В команду попал комментарий `#` — zsh его не понимает |
-| `IncompleteSnapshotError` при `mlx_lm.convert` | Сначала `hf download Qwen/Qwen3-1.7B`, потом конвертация заново |
-| Out of memory при обучении | `batch_size: 4`, потом `max_seq_length: 96`, потом `num_layers: 4` |
-| Модель пишет `<think>` | Нет `enable_thinking=False` (в Python уже есть в `tyv_translate.py`) |
-| Перевод пустой или повторяется | Мало шагов обучения — смотри на `Val loss` |
-| Подсказки `hf update`, `hf skills` | Игнорировать, обновлять не нужно |
+| `prepare_data.py` | Сплит данных, чистый тест, обучающие данные в формате чата |
+| `evaluate_nllb.py` | Эталон NLLB v3 в PyTorch (те же настройки, что при обучении) |
+| `nllb_mlx.py`, `convert_nllb_mlx.py` | NLLB (M2M100) на MLX; конвертация и квантизация весов |
+| `evaluate_nllb_mlx.py`, `bench_nllb_mlx.py` | Оценка качества на MLX; время и память на одно предложение |
+| `evaluate_gemma_mlx.py` | Оценка Gemma на MLX (mlx-vlm или mlx-lm), время и память на предложение |
+| `colab/train_gemma4_tyv_colab.ipynb` | Обучение Gemma 4 E4B с LoRA, оценка, конвертация в MLX |
+| `colab/prune_gemma4_vocab_colab.ipynb` | Сокращение словаря Gemma, текстовая модель, оценка, MLX |
+| `significance.py`, `metrics_extra.py`, `comet_eval.py` | Значимость, нормализованный chrF++, COMET |
+| `make_human_eval.py`, `count_human_eval.py` | Ручная оценка носителем отличий при квантизации |
+| `app/` | SwiftUI-приложение (Мак, iPad, iPhone) с сокращённой 6-битной Gemma на mlx-swift-lm |
+| `upload_*.py` | Публикация моделей и карточек на Hugging Face |
+| `eval_results_*` | Сохранённые переводы, по которым посчитаны все метрики |
+| `legacy/qwen/` | Ранний эксперимент с Qwen3-1.7B на MacBook |
+
+## Лицензия
+
+Код: MIT. У моделей свои лицензии: модели на основе NLLB — CC-BY-NC-4.0 (от NLLB-200 компании Meta),
+модели на основе Gemma — Apache-2.0.
+
+## Автор
+
+Али Кужугет. Дообучение NLLB v3 основано на коде дообучения NLLB Давида Дале, с его консультацией.

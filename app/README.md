@@ -1,10 +1,12 @@
-# Тыва Переводчик — приложение для Mac, iPad и iPhone
+# Tyva Translator — app for Mac, iPad and iPhone
 
-SwiftUI-приложение: перевод русский ↔ тувинский прямо на устройстве, без интернета.
-Модель — [Agisight/tyv-gemma4-e4b-pruned-mlx-6bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-pruned-mlx-6bit)
-(Gemma 4 E4B, сокращённый словарь, 6 бит, 3.2 ГБ) через [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm).
+> Русская версия: [README.ru.md](README.ru.md).
 
-## Сборка
+A SwiftUI app that translates Russian ↔ Tuvan on the device itself, without internet.
+Model: [Agisight/tyv-gemma4-e4b-pruned-mlx-6bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-pruned-mlx-6bit)
+(Gemma 4 E4B, pruned vocabulary, 6-bit, 3.2 GB) via [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm).
+
+## Build
 
 ```bash
 brew install xcodegen
@@ -13,26 +15,29 @@ xcodegen
 open TyvaTranslator.xcodeproj
 ```
 
-В Xcode:
-1. Дождаться загрузки пакетов (mlx-swift-lm, swift-huggingface, swift-transformers).
-2. При первой сборке Xcode спросит про макросы `MLXHuggingFace` — «Trust & Enable».
-3. Signing & Capabilities → выбрать свою команду (Team).
-4. Цель — **My Mac** → Run (⌘R).
+In Xcode:
+1. Wait for the packages to resolve (mlx-swift-lm, swift-huggingface, swift-transformers).
+2. Xcode asks to download the Metal Toolchain — MLX compiles its GPU shaders, so accept it.
+3. On the first build Xcode asks about the `MLXHuggingFace` macros — choose "Trust & Enable".
+4. Signing & Capabilities → pick your Team.
+5. Target **My Mac** → Run (⌘R).
 
-При первом запуске приложение скачает модель (~3.4 ГБ) в кэш, дальше работает офлайн.
-Перевести — кнопка или ⌘↩. Несколько строк переводятся построчно.
+On first launch the app downloads the model (~3.4 GB) into a cache; after that it works offline.
+Translate with the button or ⌘↩. Multiple lines are translated one by one.
 
-## iPad и iPhone
+Measured on a MacBook Air M4: 3.4 GB of memory for the weights, about 0.8–0.9 s per sentence after
+warm-up (the very first translation takes a few seconds while MLX compiles its kernels).
 
-- Только **реальное устройство**: в симуляторе нет видеокарты Apple Silicon для MLX.
-- Нужна модель с 8 ГБ памяти и больше: iPad с чипом M, iPhone 15 Pro и новее.
-- В `iOS.entitlements` включён повышенный лимит памяти (`increased-memory-limit`): модель
-  занимает ~3.8 ГБ. Если подпись не проходит — включите capability «Increased Memory Limit»
-  в Signing & Capabilities.
+## iPad and iPhone
 
-## Как устроено
+- **Real device only:** the simulator has no Apple Silicon GPU for MLX.
+- The device needs 8 GB of RAM or more: an iPad with an M chip, iPhone 15 Pro or newer.
+- `iOS.entitlements` enables the increased memory limit (`increased-memory-limit`): the model needs
+  ~3.8 GB. If signing fails, add the "Increased Memory Limit" capability in Signing & Capabilities.
 
-- `Translator.swift` — загрузка модели и перевод. Промпт собирается вручную ровно в формате
-  обучения (`<bos><|turn>user\nru→tyv: …<turn|>\n<|turn>model\n`), жадная генерация,
-  максимум `32 + 3 × длина входа` токенов — как в оценке на чистом тесте.
-- `ContentView.swift` — интерфейс: направление, ввод, перевод, копирование, время перевода.
+## How it works
+
+- `Translator.swift` — model loading and translation. The prompt is built by hand exactly as in training
+  (`<bos><|turn>user\nru→tyv: …<turn|>\n<|turn>model\n`), greedy decoding, at most
+  `32 + 3 × input length` tokens — the same settings as the clean-test evaluation.
+- `ContentView.swift` — the UI: direction, input, translation, copy, translation time.

@@ -14,7 +14,7 @@ low-resource Turkic language with roughly 280,000 speakers.
 - **A clean test set and honest evaluation** — chrF++, BLEU, COMET, paired bootstrap significance,
   and a normalized chrF++ that does not penalize gender (Tuvan has none) or word forms.
 
-Русская пошаговая инструкция для Mac: [README.ru.md](README.ru.md). Журнал экспериментов: [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md). Experiment log: [EXPERIMENTS.md](EXPERIMENTS.md).
+> Русская версия: [README.ru.md](README.ru.md). Experiment log: [EXPERIMENTS.md](EXPERIMENTS.md) (EN), [EXPERIMENTS.ru.md](EXPERIMENTS.ru.md) (RU).
 
 ## Results
 
@@ -164,7 +164,7 @@ python comet_eval.py eval_results_nllb.jsonl eval_results_gemma4.json
 ### 8. Small LLM on a MacBook (MLX LoRA)
 
 An early experiment: Qwen3-1.7B fine-tuned on a MacBook Air with `mlx_lm.lora` (`legacy/qwen/`). It works end to end but reaches only ~12–15 chrF++ — the laptop GPU
-saw ~4% of the data. Step-by-step instructions are in [README.ru.md](README.ru.md).
+saw ~4% of the data. Step-by-step instructions (in Russian): [legacy/qwen/README.ru.md](legacy/qwen/README.ru.md).
 
 ## Test set
 
@@ -189,6 +189,7 @@ comparison with earlier work, on the full 1,999 pairs. Conclusions are the same 
 | `app/` | SwiftUI app (Mac, iPad, iPhone) running the pruned 6-bit Gemma with mlx-swift-lm |
 | `upload_*.py` | Publishing models and model cards to Hugging Face |
 | `eval_results_*` | Saved translations used for all reported metrics |
+| `legacy/qwen/` | Early Qwen3-1.7B experiment on a MacBook |
 
 ## License
 

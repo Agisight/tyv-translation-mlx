@@ -12,8 +12,8 @@ adapters/
 *.safetensors
 *.gguf
 
-# Результаты прогонов
-eval_results*.jsonl
+# Результаты прогонов: переводы (eval_results_*) коммитим — они нужны для significance.py,
+# metrics_extra.py и comet_eval.py; посегментные оценки COMET — нет.
 *.log
 
 # macOS / редакторы

@@ -1,0 +1,6 @@
+# Отдельное окружение только для COMET (comet_eval.py): unbabel-comet тянет старые
+# transformers/torchmetrics и сломает основное окружение.
+#   python3.12 -m venv .venv-comet && source .venv-comet/bin/activate
+#   pip install -r requirements-comet.txt
+unbabel-comet
+setuptools<81  # torchmetrics 0.10 использует pkg_resources, убранный в setuptools 81+

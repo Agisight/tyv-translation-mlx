@@ -1,0 +1,12 @@
+# Основное окружение (Python 3.12, macOS на Apple Silicon)
+mlx>=0.32
+mlx-lm[train]>=0.31
+mlx-vlm>=0.7
+transformers>=5.14
+huggingface_hub>=1.0
+datasets
+sentencepiece
+sacrebleu
+sacremoses
+pymorphy3
+torch          # только для evaluate_nllb.py (эталон NLLB в PyTorch через MPS)

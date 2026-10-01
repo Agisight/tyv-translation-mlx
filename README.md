@@ -1,5 +1,7 @@
 # Тувинский переводчик на MLX
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Agisight/tyv-translation-mlx/blob/main/colab/train_gemma4_tyv_colab.ipynb)
+
 LoRA-дообучение Qwen3-1.7B (4 бита) на корпусе
 [Agisight/tyv-rus-200k](https://huggingface.co/datasets/Agisight/tyv-rus-200k)
 прямо на MacBook Air M4. Цель первого прогона — проверить весь путь:

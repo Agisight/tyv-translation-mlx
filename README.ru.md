@@ -99,8 +99,8 @@ python evaluate_nllb.py --bs 32
 ## 4. Базовая линия до обучения
 
 ```bash
-python translate.py --no-adapter "Как ваше здоровье?"
-python evaluate.py --no-adapter --limit 100
+python legacy/qwen/translate.py --no-adapter "Как ваше здоровье?"
+python legacy/qwen/evaluate.py --no-adapter --limit 100
 ```
 
 Модель без обучения не понимает задачу и отвечает как чат-бот. Это нормально.
@@ -111,24 +111,24 @@ python evaluate.py --no-adapter --limit 100
 Подключи зарядку, поставь Мак на подставку, закрой браузер, крышку не закрывай.
 
 ```bash
-caffeinate -i mlx_lm.lora --config lora_config.yaml
+caffeinate -i mlx_lm.lora --config legacy/qwen/lora_config.yaml
 ```
 
 - Через 20 шагов появится строка с `It/sec`. Время прогона ≈ 3000 / It/sec секунд.
 - `Val loss` каждые 250 шагов должен падать.
-- Нехватка памяти → в `lora_config.yaml` `batch_size: 4`, потом `max_seq_length: 96`.
+- Нехватка памяти → в `legacy/qwen/lora_config.yaml` `batch_size: 4`, потом `max_seq_length: 96`.
 - Адаптер сохраняется каждые 500 шагов. Продолжить прерванный прогон:
 
 ```bash
-caffeinate -i mlx_lm.lora --config lora_config.yaml --resume-adapter-file adapters/adapters.safetensors
+caffeinate -i mlx_lm.lora --config legacy/qwen/lora_config.yaml --resume-adapter-file adapters/adapters.safetensors
 ```
 
 ## 6. Проверить перевод
 
 ```bash
-python translate.py "Как ваше здоровье?"
-python translate.py --dir tyv-ru "Кадыыңар кандыг-дыр?"
-python evaluate.py --limit 500
+python legacy/qwen/translate.py "Как ваше здоровье?"
+python legacy/qwen/translate.py --dir tyv-ru "Кадыыңар кандыг-дыр?"
+python legacy/qwen/evaluate.py --limit 500
 ```
 
 Переводы сохраняются в `eval_results.jsonl` — их полезно просмотреть глазами.
@@ -138,7 +138,7 @@ python evaluate.py --limit 500
 
 ```bash
 mlx_lm.fuse --model models/qwen3-1.7b-4bit --adapter-path adapters --save-path models/tyv-qwen3-1.7b
-python translate.py --model models/tyv-qwen3-1.7b --no-adapter "Спасибо"
+python legacy/qwen/translate.py --model models/tyv-qwen3-1.7b --no-adapter "Спасибо"
 ```
 
 Папка около 1 ГБ — это модель для Mac и iPhone.

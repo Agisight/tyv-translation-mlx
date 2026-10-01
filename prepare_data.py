@@ -33,6 +33,10 @@ from pathlib import Path
 
 # Короткий промпт без системной строки: меньше токенов на пример — быстрее обучение
 SYSTEM = None
+# Фиксированная версия датасета: от неё зависят сплит и тест. Новая версия датасета →
+# другой тест и несравнимые цифры. Менять только осознанно (и записать в EXPERIMENTS.md).
+DATASET_REVISION = "6d79b8acf7031384e8c371c35bd67485d9d19d4d"
+
 PROMPTS = {
     "ru-tyv": "ru→tyv: {src}",
     "tyv-ru": "tyv→ru: {src}",
@@ -52,16 +56,16 @@ def make_example(src: str, tgt: str, direction: str) -> dict:
     return {"messages": msgs}
 
 
-def load_pairs_from_hf(name: str):
+def load_pairs_from_hf(name: str, revision: str = DATASET_REVISION):
     from datasets import load_dataset
-    ds = load_dataset(name, split="train")
+    ds = load_dataset(name, split="train", revision=revision)
     return [(r["tyv"], r["ru"]) for r in ds]
 
 
-def load_paper_split(name: str):
+def load_paper_split(name: str, revision: str = DATASET_REVISION):
     """Сплит ровно как при обучении NLLB v3 (train_nllb_tyvan_v3_experimental.py, Ячейка 4)."""
     from datasets import load_dataset
-    ds = load_dataset(name, split="train")
+    ds = load_dataset(name, split="train", revision=revision)
     ds = ds.filter(lambda ex: bool(ex.get("ru")) and bool(ex.get("tyv")))
     ds = ds.shuffle(seed=42)
     n = len(ds)
@@ -99,6 +103,8 @@ def write_jsonl(path: Path, rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default="Agisight/tyv-rus-200k")
+    ap.add_argument("--revision", default=DATASET_REVISION,
+                    help="коммит датасета на Hugging Face (по умолчанию — зафиксированный)")
     ap.add_argument("--out", default="data")
     ap.add_argument("--max-chars", type=int, default=300,
                     help="отбросить пары длиннее N символов (длинные тексты раздувают память)")
@@ -120,7 +126,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     if args.split == "paper" and not args.test_file:
-        train_raw, test_raw, dev_raw = load_paper_split(args.dataset)
+        train_raw, test_raw, dev_raw = load_paper_split(args.dataset, args.revision)
         # Тест оставляем как в статье: без очистки и без ограничения длины, в исходном порядке
         test_pairs = [((t or "").strip(), (r or "").strip()) for t, r in test_raw]
         test_pairs = [(t, r) for t, r in test_pairs if t and r]
@@ -136,7 +142,7 @@ def main():
         dev_pairs = [p for p in clean(dev_raw, args.max_chars) if norm(p[0]).lower() not in test_keys]
         print(f"Тест как у NLLB v3: {len(test_pairs):,} пар; train после очистки: {len(pairs):,} пар")
     else:
-        pairs = clean(load_pairs_from_hf(args.dataset), args.max_chars)
+        pairs = clean(load_pairs_from_hf(args.dataset, args.revision), args.max_chars)
         print(f"После очистки: {len(pairs):,} пар")
         test_pairs, test_keys, dev_pairs = None, set(), None
 

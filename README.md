@@ -116,8 +116,7 @@ python comet_eval.py eval_results_nllb.jsonl eval_results_gemma4.json
 
 ### 6. Small LLM on a MacBook (MLX LoRA)
 
-An early experiment: Qwen3-1.7B fine-tuned on a MacBook Air with `mlx_lm.lora` (`lora_config.yaml`,
-`translate.py`, `evaluate.py`). It works end to end but reaches only ~12–15 chrF++ — the laptop GPU
+An early experiment: Qwen3-1.7B fine-tuned on a MacBook Air with `mlx_lm.lora` (`legacy/qwen/`). It works end to end but reaches only ~12–15 chrF++ — the laptop GPU
 saw ~4% of the data. Step-by-step instructions are in [README.ru.md](README.ru.md).
 
 ## Test set

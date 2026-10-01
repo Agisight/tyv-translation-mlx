@@ -1,5 +1,10 @@
 """Общая функция перевода: одинаковый промпт при оценке, тестах и в приложении."""
 import re
+import sys
+from pathlib import Path
+
+# Файл лежит в legacy/qwen/, а prepare_data.py — в корне репозитория
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from mlx_lm import generate
 

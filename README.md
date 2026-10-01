@@ -89,6 +89,12 @@ A SwiftUI app in [`app/`](app/) runs the pruned 6-bit Gemma fully offline with
 [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm): about 0.9 s per sentence on a MacBook Air M4.
 The prompt is built exactly as in training, with greedy decoding.
 
+- **Text** — token-by-token output, long text split into sentences automatically, progress and stop.
+- **Documents** — TXT, MD, CSV, TSV, RTF and DOCX (macOS): whole files sentence by sentence, or a chosen table
+  column added as a new column; save as TXT or CSV. Bullets, emoji and numbering are kept as is.
+
+![Documents tab: a whole file translated into Tuvan with its structure kept](app/screenshot3.png)
+
 ```bash
 brew install xcodegen
 cd app && xcodegen && open TyvaTranslator.xcodeproj

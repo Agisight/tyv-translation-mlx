@@ -1,76 +1,29 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
 
+/// Корневой экран: вкладки «Текст», «Документы», «Настройки»
 struct ContentView: View {
     @StateObject private var translator = Translator()
-    @State private var direction: Direction = .ruToTyv
-    @State private var input = "Завтра я поеду в Кызыл к родителям."
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            status
-
-            HStack {
-                Text(direction.source).font(.headline)
-                Spacer()
-                Button(action: swap) { Image(systemName: "arrow.left.arrow.right") }
-                    .help("Поменять направление")
-                Spacer()
-                Text(direction.target).font(.headline)
-            }
-
-            TextEditor(text: $input)
-                .font(.title3)
-                .frame(minHeight: 120)
-                .padding(6)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.3)))
-
-            HStack(spacing: 12) {
-                Button {
-                    Task { await translator.translate(input, direction: direction) }
-                } label: {
-                    Label("Перевести", systemImage: "character.book.closed")
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(translator.state != .ready || translator.isTranslating || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                if translator.isTranslating { ProgressView().controlSize(.small) }
-                Spacer()
-                if let s = translator.lastSeconds, !translator.isTranslating {
-                    Text(String(format: "%.1f с", s)).foregroundStyle(.secondary)
-                }
-            }
-
-            ScrollView {
-                Text(translator.output.isEmpty ? " " : translator.output)
-                    .font(.title3)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(minHeight: 120)
-            .padding(10)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-
-            HStack {
-                Button(action: copyOutput) { Label("Копировать", systemImage: "doc.on.doc") }
-                    .disabled(translator.output.isEmpty)
-                Spacer()
-                Text("Офлайн · Gemma 4 E4B, 6 бит · 3.2 ГБ")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        TabView {
+            TextTranslateView()
+                .tabItem { Label("Текст", systemImage: "character.book.closed") }
+            DocumentsView()
+                .tabItem { Label("Документы", systemImage: "doc.text") }
+            SettingsView()
+                .tabItem { Label("Настройки", systemImage: "gearshape") }
         }
-        .padding()
-        .frame(minWidth: 520, minHeight: 520)
+        .environmentObject(translator)
+        .frame(minWidth: 560, minHeight: 560)
         .task { await translator.load() }
     }
+}
 
-    @ViewBuilder private var status: some View {
+/// Строка состояния модели — одна на все вкладки
+struct ModelStatusView: View {
+    @EnvironmentObject private var translator: Translator
+
+    var body: some View {
         switch translator.state {
         case .idle:
             EmptyView()
@@ -89,21 +42,24 @@ struct ContentView: View {
             }
         }
     }
+}
 
-    private func swap() {
-        direction = direction.swapped
-        if !translator.output.isEmpty {
-            input = translator.output
-            translator.output = ""
+/// Направление перевода с кнопкой ⇄
+struct DirectionBar: View {
+    @Binding var direction: Direction
+    var onSwap: () -> Void = {}
+
+    var body: some View {
+        HStack {
+            Text(direction.source).font(.headline)
+            Spacer()
+            Button {
+                direction = direction.swapped
+                onSwap()
+            } label: { Image(systemName: "arrow.left.arrow.right") }
+                .help("Поменять направление")
+            Spacer()
+            Text(direction.target).font(.headline)
         }
-    }
-
-    private func copyOutput() {
-        #if os(macOS)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(translator.output, forType: .string)
-        #else
-        UIPasteboard.general.string = translator.output
-        #endif
     }
 }

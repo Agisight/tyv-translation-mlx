@@ -33,13 +33,14 @@ def card(bits: int) -> str:
     other = 8 if bits == 4 else 4
     r = QUANT_RESULTS[bits]
     quant_line = f"| This {bits}-bit MLX model ({r[2]}) | {r[0]} | {r[1]} |"
-    verdict = ("**Recommended MLX version.** On the full clean test it matches the bf16 model "
-               "(50.3 / 50.9 vs. 50.5 / 50.9) and stays above NLLB v3 (49.2 / 49.1)."
+    pruned = "[Agisight/tyv-gemma4-e4b-pruned-mlx-6bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-pruned-mlx-6bit)"
+    verdict = (f"**Lossless, but superseded for most uses.** On the full clean test this full-vocabulary 8-bit model "
+               f"matches the bf16 model (50.3 / 50.9 vs. 50.5 / 50.9). For translation, use {pruned} instead: "
+               f"same quality (50.2 / 50.8), 3.2 GB instead of 8.4 GB, text-only with a pruned vocabulary. "
+               f"Keep this version if you need Gemma's vision or audio towers."
                if bits == 8 else
-               "**Not recommended.** 4-bit quantization noticeably hurts this model: on the first 100 test "
-               "pairs it loses 2.9 / 5.3 chrF++ against bf16, while the 8-bit version is lossless. "
-               "Use [Agisight/tyv-gemma4-e4b-mlx-8bit](https://huggingface.co/Agisight/tyv-gemma4-e4b-mlx-8bit) "
-               "unless memory is the hard limit. A more careful 4-bit quantization is planned.")
+               f"**Not recommended.** 4-bit quantization noticeably hurts this model: on the first 100 test "
+               f"pairs it loses 2.9 / 5.3 chrF++ against bf16. Use {pruned} — 3.2 GB with the full model's quality.")
     return f"""---
 library_name: mlx
 base_model: {BASE}

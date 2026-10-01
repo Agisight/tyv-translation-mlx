@@ -81,7 +81,7 @@ mlx_lm.generate --model Agisight/tyv-gemma4-e4b-pruned-mlx-6bit \
 ## App for Mac, iPad and iPhone
 
 <p>
-  <img src="app/screenshot.png" alt="Tyva Translator on a Mac: Tuvan to Russian, 0.8 s" width="49%">
+  <img src="app/screenshot.png" alt="Tyva Translator on a Mac: two Russian sentences translated into Tuvan, 2.9 s" width="49%">
   <img src="app/screenshot2.png" alt="Tyva Translator on a Mac: «Аштай бердим» → «Я проголодался», 0.7 s" width="49%">
 </p>
 

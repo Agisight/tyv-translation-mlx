@@ -21,6 +21,7 @@
 - [x] Обучение Gemma 4 E4B в Colab (A100 80 ГБ) на всём train: 1 эпоха, 8494 шага, 7.5 ч; адаптер на Диске и в HF (приватно): https://huggingface.co/Agisight/tyv-gemma4-e4b-lora
 - [x] Оценка Gemma: чистый и полный тест, значимость (paired bootstrap), нормализованный chrF++, COMET — **значимо лучше NLLB v3 в обе стороны**
 - [x] Gemma 4 E4B LoRA опубликована: https://huggingface.co/Agisight/tyv-gemma4-e4b-lora (карточка с метриками, значимостью и кодом)
+- [x] MLX 4/8 бит загружены (приватно): Agisight/tyv-gemma4-e4b-mlx-4bit, -8bit; первые 100 фраз: 4 бит −2.9 / −5.3 chrF++ к bf16 — проверяем 8 бит
 - [ ] Gemma → MLX на Маке (слитая bf16 весит ~16 ГБ, на диске ~22 ГБ свободно — продумать путь)
 - [ ] Запуск на Mac (LLMEval)
 - [ ] Запуск на iPhone
